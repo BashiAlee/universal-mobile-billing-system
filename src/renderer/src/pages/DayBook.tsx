@@ -331,12 +331,6 @@ export default function DayBookPage(): React.JSX.Element {
                 <span>{m(book.creditMinor)}</span>
               </div>
             )}
-            {book.supplierSpendMinor > 0 && (
-              <div className="row muted">
-                <span>Paid to suppliers today (info only)</span>
-                <span>{m(book.supplierSpendMinor)}</span>
-              </div>
-            )}
             <div className="row total">
               <span>Remaining balance</span>
               <span className={book.closingMinor < 0 ? 'err' : ''}>{m(book.closingMinor)}</span>

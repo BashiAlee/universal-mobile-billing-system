@@ -307,15 +307,6 @@ export default function DashboardPage({
               color="#1c7c3a"
             />
             <Kpi
-              label="PAID TO SUPPLIERS"
-              value={m(report.supplierSpendMinor)}
-              now={report.supplierSpendMinor}
-              before={data.previous.purchasesMinor}
-              series={data.series.purchases}
-              upIsGood={false}
-              color="#e08a00"
-            />
-            <Kpi
               label="EXPENSE"
               value={m(data.expensesMinor)}
               now={data.expensesMinor}
@@ -332,8 +323,7 @@ export default function DashboardPage({
               <Columns
                 items={[
                   { label: 'Money in', value: data.receivedMinor, color: '#1c7c3a' },
-                  { label: 'Expenses', value: data.expensesMinor, color: '#c4302b' },
-                  { label: 'Paid to suppliers', value: report.supplierSpendMinor, color: '#e08a00' }
+                  { label: 'Expenses', value: data.expensesMinor, color: '#c4302b' }
                 ]}
               />
             </div>

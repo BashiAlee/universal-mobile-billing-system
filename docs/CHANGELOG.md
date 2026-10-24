@@ -2,6 +2,11 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com). Versions follow SemVer.
 
+## [0.9.1] - 2026-10-24: Supplier money removed from Day book, Dashboard and Reports
+
+### Changed
+- On request ("day book is daily profit and sale, nothing from money I owe; parties is separate"): the "Paid to suppliers" line is gone from the **Day book**, the **Reports** screen and its CSV, and the **Dashboard** tile and cash-flow column. Money to and from parties now appears only on the **Parties** page and in the Dashboard's "Money owed to parties" section. Profit and the day book balance never used it. The figures still exist in the data layer (`supplierSpendMinor`, tested) but are not shown.
+
 ## [0.9.0] - 2026-10-24: Add phones directly; owed money kept out of spending
 
 ### Added

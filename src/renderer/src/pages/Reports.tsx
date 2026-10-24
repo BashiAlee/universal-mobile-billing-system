@@ -80,7 +80,6 @@ export default function ReportsPage(): React.JSX.Element {
         ['Payment method', 'Bills', 'Amount'],
         ...report.byPayment.map((p) => [p.method, p.bills, money(p.totalMinor)]),
         [],
-        ['Paid to suppliers', money(report.supplierSpendMinor)],
         ['Stock value at cost (now)', money(report.stockCostValueMinor)],
         ['Stock value at selling price (now)', money(report.stockRetailValueMinor)]
       ]
@@ -288,10 +287,6 @@ export default function ReportsPage(): React.JSX.Element {
             <div className="row">
               <span>Total billed (including tax)</span>
               <span>{m(report.totalBilledMinor)}</span>
-            </div>
-            <div className="row">
-              <span>Paid to suppliers in this period</span>
-              <span>-{m(report.supplierSpendMinor)}</span>
             </div>
           </div>
           <div className="card">
