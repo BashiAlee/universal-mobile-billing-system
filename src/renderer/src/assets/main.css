@@ -1,0 +1,620 @@
+:root {
+  --bg: #f5f6f8;
+  --card: #fff;
+  --ink: #1c2230;
+  --muted: #6b7385;
+  --line: #e1e4ea;
+  --accent: #2457d6;
+  --danger: #c4302b;
+  --ok: #1c7c3a;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  font:
+    14px/1.45 system-ui,
+    'Segoe UI',
+    sans-serif;
+  color: var(--ink);
+  background: var(--bg);
+}
+h1 {
+  font-size: 20px;
+  margin: 0 0 12px;
+}
+h2 {
+  margin-top: 0;
+}
+button {
+  font: inherit;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  border-radius: 6px;
+  cursor: pointer;
+}
+button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+button.primary {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+button.danger {
+  color: var(--danger);
+}
+button.big {
+  padding: 12px;
+  font-size: 16px;
+}
+button.link {
+  border: none;
+  background: none;
+  color: var(--accent);
+  text-decoration: underline;
+}
+input,
+select {
+  font: inherit;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  width: 100%;
+}
+.app {
+  display: flex;
+  height: 100vh;
+}
+.sidebar {
+  width: 220px;
+  background: #17203a;
+  color: #fff;
+  padding: 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sidebar .brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 6px 16px;
+  font-size: 16px;
+  word-break: break-word;
+}
+.sidebar .brand img {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  background: #fff;
+  border-radius: 6px;
+}
+.sidebar button {
+  background: transparent;
+  color: #cfd6ee;
+  border: none;
+  text-align: left;
+  padding: 10px 12px;
+}
+.sidebar button.active,
+.sidebar button:hover {
+  background: #27325a;
+  color: #fff;
+}
+main {
+  flex: 1;
+  overflow: auto;
+}
+.page {
+  padding: 20px 24px;
+}
+.page.billing {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 20px;
+}
+.toolbar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.toolbar h1 {
+  margin: 0;
+  flex: 1;
+}
+.toolbar input {
+  width: 240px;
+}
+.grid {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.grid th,
+.grid td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+}
+.num {
+  text-align: right !important;
+}
+.center {
+  text-align: center;
+}
+.muted {
+  color: var(--muted);
+}
+.actions {
+  white-space: nowrap; /* not display:flex - that removes the cell from the table and breaks row borders */
+}
+.actions button + button {
+  margin-left: 6px;
+}
+.grid td.qtycell,
+.grid td code {
+  white-space: nowrap;
+}
+tr.low td {
+  background: #fff6f5;
+}
+.badge {
+  color: var(--danger);
+  font-weight: 600;
+  font-size: 12px;
+}
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 520px;
+}
+.form label,
+.summary label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--muted);
+}
+.field-label {
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.logo-row {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+.logo-preview {
+  width: 80px;
+  height: 80px;
+  object-fit: contain;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+}
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: grid;
+  place-items: center;
+}
+.modal-card {
+  background: #fff;
+  padding: 20px;
+  border-radius: 10px;
+  width: 420px;
+  max-height: 90vh;
+  overflow: auto;
+}
+.row-end {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+.err {
+  color: var(--danger);
+}
+.ok {
+  color: var(--ok);
+}
+.scan {
+  font-size: 18px;
+  padding: 12px;
+  margin-bottom: 8px;
+}
+.results {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  border: 1px solid var(--line);
+  background: #fff;
+}
+.results button {
+  width: 100%;
+  text-align: left;
+  border: none;
+}
+.qty {
+  display: inline-block;
+  min-width: 28px;
+  text-align: center;
+}
+.summary {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: fit-content;
+}
+.row {
+  display: flex;
+  justify-content: space-between;
+}
+label.inline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+}
+label.inline input {
+  width: auto;
+}
+.card .row {
+  padding: 3px 0;
+}
+.total {
+  font-size: 20px;
+  font-weight: 700;
+}
+.detail {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.print-area {
+  display: none;
+}
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+  }
+  .print-area {
+    display: block;
+    color: #000;
+  }
+  .receipt {
+    font-family: Arial, Helvetica, sans-serif;
+    line-height: 1.3;
+  }
+  .receipt .dash {
+    border-top: 2px dashed #000;
+    margin: 7px 0;
+  }
+  .r-head {
+    text-align: center;
+  }
+  .receipt-logo {
+    max-width: 40mm;
+    max-height: 20mm;
+    display: block;
+    margin: 0 auto 4px;
+  }
+  .r-shop {
+    font-size: 1.4em;
+    font-weight: 700;
+  }
+  .r-title {
+    text-align: center;
+    font-size: 2em;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+  }
+  .r-meta {
+    display: flex;
+    justify-content: space-between;
+    gap: 6px;
+    font-size: 0.85em;
+  }
+  .r-items {
+    margin-top: 8px;
+  }
+  .r-item {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    margin: 3px 0;
+  }
+  .r-item-name {
+    min-width: 0;
+    overflow-wrap: anywhere; /* names with no spaces must wrap, never push the price off the paper */
+  }
+  .r-item-price {
+    white-space: nowrap;
+    flex: none;
+  }
+  .r-line {
+    display: flex;
+    justify-content: space-between;
+    margin: 2px 0;
+  }
+  .r-bold {
+    font-weight: 700;
+    font-size: 1.1em;
+  }
+  .r-thanks {
+    text-align: center;
+    font-size: 1.6em;
+    font-weight: 800;
+    margin: 6px 0;
+    text-transform: uppercase;
+  }
+  .r-barcode {
+    text-align: center;
+  }
+  .r-barcode-text {
+    font-size: 0.8em;
+    letter-spacing: 0.1em;
+  }
+  .label {
+    break-after: page;
+  }
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.form.wide {
+  max-width: none;
+}
+
+/* Keeps a wide bill table inside its column instead of sliding under the summary panel. */
+.tablewrap {
+  overflow-x: auto;
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.tile {
+  color: #fff;
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+.tile strong {
+  display: block;
+  font-size: 22px;
+  margin-top: 4px;
+}
+.charts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.charts .card {
+  margin: 0;
+}
+.charts .card.wide {
+  grid-column: 1 / -1;
+}
+.charts h2 {
+  font-size: 15px;
+  margin: 0 0 8px;
+}
+.legend {
+  font-size: 13px;
+  margin-top: 6px;
+}
+.hbar {
+  display: grid;
+  grid-template-columns: 160px 1fr 120px;
+  gap: 10px;
+  align-items: center;
+  padding: 3px 0;
+}
+.hbar-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hbar-track {
+  background: #e9ecf3;
+  border-radius: 4px;
+  height: 14px;
+  display: block;
+}
+.hbar-track span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 4px;
+}
+.hbar-val {
+  text-align: right;
+}
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+  margin-bottom: 16px;
+}
+.kpi {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 16px;
+}
+.kpi-label {
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+.kpi-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.kpi-row strong {
+  font-size: 24px;
+  overflow-wrap: anywhere;
+}
+.kpi-trend {
+  font-size: 12px;
+  margin-top: 2px;
+}
+.charts.three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-bottom: 16px;
+}
+.notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  border: none;
+  padding: 8px 0;
+}
+.badge-dot {
+  display: inline-grid;
+  place-items: center;
+  min-width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  color: #fff;
+  font-weight: 700;
+}
+@media (max-width: 1150px) {
+  .charts.three {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Product label: items are placed in mm, so the same markup serves the designer preview and the printer. */
+.lbl {
+  position: relative;
+  overflow: hidden;
+  background: #fff;
+  color: #000;
+  font-family: Arial, Helvetica, sans-serif;
+  line-height: 1.05;
+}
+.lbl-el {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+.lbl-el img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.lbl-el > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.lbl-el > .lbl-price {
+  white-space: nowrap; /* the price must never wrap or be cut */
+}
+.lbl-el.editable {
+  cursor: move;
+  touch-action: none;
+}
+.lbl-el.editable.selected {
+  outline: 0.3mm dashed var(--accent);
+}
+.designer {
+  display: grid;
+  grid-template-columns: 210px minmax(0, 1fr) 270px;
+  gap: 16px;
+  align-items: start;
+}
+.designer .card {
+  margin: 0;
+}
+.designer-list {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+}
+.designer-list button {
+  width: 100%;
+  text-align: left;
+  border: none;
+}
+.designer-list button.active {
+  background: #e8eefc;
+  font-weight: 600;
+}
+.stage-bg {
+  background: #e9ecf3;
+  border-radius: 8px;
+  padding: 24px;
+  overflow: auto;
+  display: grid;
+  place-items: center;
+}
+.stage {
+  background: #fff;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.25);
+  position: relative;
+}
+.prop-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.prop-grid label,
+.designer .form label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.add-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0;
+}
+@media (max-width: 1150px) {
+  .designer {
+    grid-template-columns: 1fr;
+  }
+}
