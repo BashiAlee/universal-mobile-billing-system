@@ -48,6 +48,14 @@ const api = {
     list: (search?: string) => call('purchases:list', search),
     suppliers: () => call('purchases:suppliers')
   },
+  parties: {
+    list: (search?: string) => call('parties:list', search),
+    save: (input: unknown) => call('parties:save', input),
+    delete: (id: number) => call('parties:delete', id),
+    ledger: (id: number) => call('parties:ledger', id),
+    pay: (input: unknown) => call('parties:pay', input),
+    deletePayment: (id: number) => call('parties:deletePayment', id)
+  },
   bills: {
     create: (input: unknown) => call('bills:create', input),
     list: (search?: string) => call('bills:list', search),

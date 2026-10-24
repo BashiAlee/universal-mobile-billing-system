@@ -333,3 +333,48 @@ test('label designer: edit a 38 x 25 mm label, save it, and print with that desi
   const lab = (await page.evaluate(() => (window as unknown as { __lab: { text: string } }).__lab))!
   expect(lab.text).toContain('WARRANTY 1 YR')
 })
+
+test('parties: a purchase creates the supplier and the new product, the part not paid stays owed', async () => {
+  await page.getByRole('button', { name: 'Purchases' }).click()
+  await page.getByRole('button', { name: '+ New purchase' }).click()
+  await page.getByLabel('Supplier').fill('Gadget Hub')
+  await page.getByLabel('Find product to add').fill('Screen guard')
+  await page.getByRole('button', { name: /Add “Screen guard” as a new product/ }).click()
+  await page.getByLabel('Selling price of Screen guard').fill('250')
+  await page.getByLabel('Quantity of Screen guard').fill('10')
+  await page.getByLabel('Total cost of Screen guard').fill('5000')
+  await page.getByLabel('Paid now').fill('2000')
+  await page.getByRole('button', { name: 'Save purchase & add to stock' }).click()
+  await expect(page.getByRole('status')).toContainText('3,000.00 still due')
+
+  await page.getByRole('button', { name: 'Products & stock' }).click()
+  const prod = page.getByRole('row', { name: /Screen guard/ })
+  await expect(prod).toContainText('250.00')
+  await expect(prod).toContainText('10')
+
+  await page.getByRole('button', { name: 'Parties', exact: true }).click()
+  const row = page.getByRole('row', { name: /Gadget Hub/ })
+  await expect(row).toContainText('You owe Rs 3,000.00')
+
+  await row.getByRole('button', { name: 'Pay' }).click()
+  const dlg = page.getByRole('dialog', { name: 'Pay party' })
+  await dlg.getByLabel('Amount paid').fill('1000')
+  await dlg.getByRole('button', { name: 'Record payment' }).click()
+  await expect(page.getByRole('status')).toContainText('1,000.00 paid to Gadget Hub')
+  await expect(row).toContainText('You owe Rs 2,000.00')
+
+  await row.getByRole('button', { name: 'Ledger' }).click()
+  const led = page.getByRole('region', { name: 'Party ledger' })
+  await expect(led).toContainText('10 Screen guard')
+  await expect(led.getByRole('row', { name: /Payment/ })).toContainText('2,000.00')
+})
+
+test('parties: add a party with an opening balance', async () => {
+  await page.getByRole('button', { name: 'Parties', exact: true }).click()
+  await page.getByRole('button', { name: '+ Add party' }).click()
+  const f = page.getByRole('dialog', { name: 'Party form' })
+  await f.getByLabel('Name', { exact: true }).fill('Old Supplier')
+  await f.getByLabel('Balance from before using this app (optional)').fill('7500')
+  await f.getByRole('button', { name: 'Save' }).click()
+  await expect(page.getByRole('row', { name: /Old Supplier/ })).toContainText('You owe Rs 7,500.00')
+})

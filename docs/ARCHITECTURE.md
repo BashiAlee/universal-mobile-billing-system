@@ -53,10 +53,12 @@ docs/              project documentation
 | `bills` | `id` PK, `bill_no` UNIQUE, `created_at`, `subtotal_minor`, `discount_minor`, `tax_minor`, `total_minor`, `payment_method`, `customer_name`, `tendered_minor` (cash received, 0 if not recorded) |
 | `bill_items` | `id` PK, `bill_id` FK, `product_id` FK, `code`, `name`, `unit_price_minor`, `qty`, `line_total_minor`, `unit_cost_minor` (cost at time of sale, v4) |
 
-| `purchases` | `id` PK, `purchase_no` UNIQUE, `created_at`, `supplier_name`, `note`, `total_minor` |
+| `purchases` | `id` PK, `purchase_no` UNIQUE, `created_at`, `supplier_name`, `party_id` FK (v7), `note`, `total_minor`, `paid_minor` (paid at purchase time, v7) |
 | `purchase_items` | `id` PK, `purchase_id` FK, `product_id` FK, `code`, `name`, `qty`, `unit_cost_minor`, `line_total_minor` |
 | `expenses` | `id` PK, `day` (YYYY-MM-DD), `title`, `amount_minor`, `created_at` (v5) |
 | `day_book` | `day` PK, `opening_minor` (NULL = carry forward), `notes` (v5) |
+| `parties` | `id` PK, `name` UNIQUE (nocase), `phone`, `address`, `notes`, `opening_minor` (owed before the app; negative = they owe us), `created_at` (v7). Balance is never stored: opening + sum(total - paid) - sum(payments) |
+| `party_payments` | `id` PK, `party_id` FK, `amount_minor` > 0, `day`, `note`, `created_at` (v7) |
 | `label_designs` | `id` PK, `name` UNIQUE (nocase), `width_mm`, `height_mm`, `code_type`, `elements` (JSON list of boxes in mm), `is_default`, `created_at` (v6) |
 
 Settings keys: `shopName`, `address`, `phone`, `currencySymbol`, `taxRateBp`, `logoDataUrl`, `receiptFooter`, `receiptWidthMm` (58/80), `labelWidthMm`, `labelHeightMm`, `labelCodeType` (`barcode` | `qr`).
@@ -83,6 +85,12 @@ Every call returns `{ ok: true, data }` or `{ ok: false, error }`. Handlers neve
 | `purchases:create` | `PurchaseInput` | `Purchase` |
 | `purchases:list` | `search?` | `Purchase[]` |
 | `purchases:suppliers` | none | `string[]` |
+| `parties:list` | search? | `Party[]` (with totals and balance) |
+| `parties:save` | `PartyInput` (id = update) | `Party` |
+| `parties:delete` | `id` | void (only without history) |
+| `parties:ledger` | `id` | `PartyLedger` |
+| `parties:pay` | `PartyPaymentInput` | `Party` |
+| `parties:deletePayment` | `id` | void |
 | `labels:list` | none | `LabelDesign[]` |
 | `labels:save` | `LabelDesignInput` (id = update) | `LabelDesign` |
 | `labels:delete` | `id` | void |

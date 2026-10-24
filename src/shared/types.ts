@@ -91,22 +91,38 @@ export interface StockMovement {
   createdAt: string
 }
 
+/** A brand-new product created by the purchase itself (it starts at 0 stock, then the purchase adds the quantity). */
+export interface NewProductInput {
+  name: string
+  /** Selling price. */
+  priceMinor: number
+  code?: string
+}
+
 export interface PurchaseLineInput {
-  productId: number
+  /** An existing product, or leave out and give `newProduct` to create it from this purchase. */
+  productId?: number
+  newProduct?: NewProductInput
   qty: number
   /** Total paid for this whole line (e.g. 200 covers for 10000), not the per-unit price. */
   totalCostMinor: number
 }
 
 export interface PurchaseInput {
-  supplierName: string
+  /** Existing party, or give `supplierName` (a party with that name is found or created). */
+  partyId?: number
+  supplierName?: string
+  /** Paid at the time of purchase; the rest stays owed. Defaults to the full total. */
+  paidMinor?: number
   note?: string
   items: PurchaseLineInput[]
 }
 
 /** A stock-free record of money spent with a vendor: no products, no stock change. */
 export interface SupplierNoteInput {
-  supplierName: string
+  partyId?: number
+  supplierName?: string
+  paidMinor?: number
   /** What it covered, e.g. "200 phone covers". */
   description: string
   amountMinor: number
@@ -128,10 +144,66 @@ export interface Purchase {
   id: number
   purchaseNo: string
   createdAt: string
+  partyId: number | null
   supplierName: string
   note: string
   totalMinor: number
+  paidMinor: number
   items: PurchaseItem[]
+}
+
+export interface PartyInput {
+  id?: number
+  name: string
+  phone?: string
+  address?: string
+  notes?: string
+  /** What we already owed them before using the app (negative if they owe us). */
+  openingMinor?: number
+}
+
+export interface Party {
+  id: number
+  name: string
+  phone: string
+  address: string
+  notes: string
+  openingMinor: number
+  createdAt: string
+  /** Total of all purchases from this party. */
+  purchasedMinor: number
+  /** Everything paid: at purchase time plus separate payments. */
+  paidMinor: number
+  /** Positive = we owe them; negative = they owe us (advance paid). */
+  balanceMinor: number
+  lastActivity: string | null
+}
+
+export interface PartyPaymentInput {
+  partyId: number
+  amountMinor: number
+  /** YYYY-MM-DD, defaults to today. */
+  date?: string
+  note?: string
+}
+
+export interface LedgerEntry {
+  /** 'payment' ids are party_payments ids (deletable); 'purchase' ids are purchases ids. */
+  kind: 'opening' | 'purchase' | 'payment'
+  id: number
+  date: string
+  ref: string
+  description: string
+  /** Value of goods bought (adds to what we owe). */
+  boughtMinor: number
+  /** Money paid out (reduces what we owe). */
+  paidMinor: number
+  balanceAfterMinor: number
+}
+
+export interface PartyLedger {
+  party: Party
+  entries: LedgerEntry[]
 }
 
 export interface ReportRange {

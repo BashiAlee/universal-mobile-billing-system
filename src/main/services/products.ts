@@ -77,9 +77,14 @@ function recordMovement(
 export { recordMovement }
 
 export function createProduct(db: Db, input: ProductInput): Product {
+  return transaction(db, () => insertProduct(db, input))
+}
+
+/** Same as createProduct but without its own transaction, so a caller (e.g. a purchase) can include it in theirs. */
+export function insertProduct(db: Db, input: ProductInput): Product {
   validate(input)
   const code = input.code?.trim()
-  return transaction(db, () => {
+  {
     const t = now()
     // Temporary unique code is replaced by the generated P-000123 style code when none was supplied.
     const res = db
@@ -105,7 +110,7 @@ export function createProduct(db: Db, input: ProductInput): Product {
       )
     if ((input.stockQty ?? 0) > 0) recordMovement(db, id, input.stockQty ?? 0, 'initial')
     return getProduct(db, id)!
-  })
+  }
 }
 
 export function getProduct(db: Db, id: number): Product | null {

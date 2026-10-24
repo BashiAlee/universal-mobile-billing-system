@@ -1,13 +1,19 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import type { Product, Purchase } from '../../../shared/types'
 import { useSettings } from '../lib/useSettings'
-import { formatMoney, parseMoney } from '../lib/money'
+import { formatMoney, minorToInput, parseMoney } from '../lib/money'
 
 interface Line {
-  product: Product
+  key: string
+  /** An existing product; a line without one creates a new product from `newName`. */
+  product?: Product
+  newName?: string
+  /** Selling price of a new product. */
+  price: string
   qty: string
   total: string
 }
+const lineName = (l: Line): string => l.product?.name ?? l.newName ?? ''
 
 export default function PurchasesPage(): React.JSX.Element {
   const { settings } = useSettings()
@@ -27,6 +33,8 @@ export default function PurchasesPage(): React.JSX.Element {
   const [nWhat, setNWhat] = useState('')
   const [nAmount, setNAmount] = useState('')
   const [nDate, setNDate] = useState('')
+  const [nPaid, setNPaid] = useState('')
+  const [paid, setPaid] = useState('')
   const [supplier, setSupplier] = useState('')
   const [note, setNote] = useState('')
   const [lines, setLines] = useState<Line[]>([])
@@ -57,8 +65,23 @@ export default function PurchasesPage(): React.JSX.Element {
 
   function addProduct(p: Product): void {
     setLines((cur) =>
-      cur.some((l) => l.product.id === p.id) ? cur : [...cur, { product: p, qty: '', total: '' }]
+      cur.some((l) => l.product?.id === p.id)
+        ? cur
+        : [...cur, { key: `p${p.id}`, product: p, price: '', qty: '', total: '' }]
     )
+    setPick('')
+    setOptions([])
+    pickRef.current?.focus()
+  }
+
+  // A product that doesn't exist yet is created together with the purchase.
+  function addNew(): void {
+    const name = pick.trim()
+    if (!name) return
+    setLines((cur) => [
+      ...cur,
+      { key: `n${Date.now()}-${cur.length}`, newName: name, price: '', qty: '', total: '' }
+    ])
     setPick('')
     setOptions([])
     pickRef.current?.focus()
@@ -73,16 +96,22 @@ export default function PurchasesPage(): React.JSX.Element {
     if (options.length === 1) addProduct(options[0])
   }
 
-  const setLine = (id: number, patch: Partial<Line>): void =>
-    setLines((cur) => cur.map((l) => (l.product.id === id ? { ...l, ...patch } : l)))
+  const setLine = (key: string, patch: Partial<Line>): void =>
+    setLines((cur) => cur.map((l) => (l.key === key ? { ...l, ...patch } : l)))
 
-  const parsed = lines.map((l) => ({ qty: Number(l.qty), total: parseMoney(l.total) }))
+  const parsed = lines.map((l) => ({
+    qty: Number(l.qty),
+    total: parseMoney(l.total),
+    price: parseMoney(l.price)
+  }))
   const grand = parsed.reduce((a, p) => a + (p.total ?? 0), 0)
+  const paidNow = paid.trim() ? parseMoney(paid) : grand
 
   function reset(): void {
     setCreating(false)
     setSupplier('')
     setNote('')
+    setPaid('')
     setLines([])
     setPick('')
     setOptions([])
@@ -94,6 +123,7 @@ export default function PurchasesPage(): React.JSX.Element {
     setNWhat('')
     setNAmount('')
     setNDate('')
+    setNPaid('')
   }
 
   async function saveNote(): Promise<void> {
@@ -103,6 +133,9 @@ export default function PurchasesPage(): React.JSX.Element {
     if (!nWhat.trim()) return setMsg({ ok: false, text: 'Describe what you bought' })
     if (amount === null || amount <= 0)
       return setMsg({ ok: false, text: 'Enter the amount, e.g. 10000' })
+    const nPaidMinor = nPaid.trim() ? parseMoney(nPaid) : amount
+    if (nPaidMinor === null || nPaidMinor > amount)
+      return setMsg({ ok: false, text: 'Paid now must be a valid amount, not more than the total' })
     savingRef.current = true
     setSaving(true)
     const r = await window.api.purchases
@@ -110,6 +143,7 @@ export default function PurchasesPage(): React.JSX.Element {
         supplierName: nSupplier,
         description: nWhat,
         amountMinor: amount,
+        paidMinor: nPaidMinor,
         date: nDate || undefined
       })
       .finally(() => {
@@ -128,18 +162,28 @@ export default function PurchasesPage(): React.JSX.Element {
     for (let i = 0; i < lines.length; i++) {
       const { qty, total } = parsed[i]
       if (!Number.isInteger(qty) || qty <= 0)
-        return setMsg({ ok: false, text: `Enter a whole quantity for ${lines[i].product.name}` })
+        return setMsg({ ok: false, text: `Enter a whole quantity for ${lineName(lines[i])}` })
       if (total === null)
-        return setMsg({ ok: false, text: `Enter the total cost for ${lines[i].product.name}` })
+        return setMsg({ ok: false, text: `Enter the total cost for ${lineName(lines[i])}` })
+      if (!lines[i].product && parsed[i].price === null)
+        return setMsg({
+          ok: false,
+          text: `Enter the selling price for the new product ${lineName(lines[i])}`
+        })
     }
+    if (paidNow === null || paidNow > grand)
+      return setMsg({ ok: false, text: 'Paid now must be a valid amount, not more than the total' })
     savingRef.current = true
     setSaving(true)
     const r = await window.api.purchases
       .create({
         supplierName: supplier,
         note,
+        paidMinor: paidNow,
         items: lines.map((l, i) => ({
-          productId: l.product.id,
+          ...(l.product
+            ? { productId: l.product.id }
+            : { newProduct: { name: l.newName as string, priceMinor: parsed[i].price as number } }),
           qty: parsed[i].qty,
           totalCostMinor: parsed[i].total as number
         }))
@@ -149,7 +193,14 @@ export default function PurchasesPage(): React.JSX.Element {
         setSaving(false)
       })
     if (!r.ok) return setMsg({ ok: false, text: r.error })
-    setMsg({ ok: true, text: `Saved ${r.data.purchaseNo}: stock updated` })
+    setMsg({
+      ok: true,
+      text: `Saved ${r.data.purchaseNo}: stock updated${
+        r.data.totalMinor > r.data.paidMinor
+          ? `, ${m(r.data.totalMinor - r.data.paidMinor)} still due`
+          : ''
+      }`
+    })
     reset()
     void load()
   }
@@ -237,6 +288,15 @@ export default function PurchasesPage(): React.JSX.Element {
             />
           </label>
           <label>
+            Paid now (leave empty if paid in full)
+            <input
+              value={nPaid}
+              inputMode="decimal"
+              onChange={(e) => setNPaid(e.target.value)}
+              placeholder="e.g. 4000"
+            />
+          </label>
+          <label>
             Date (optional, today if empty)
             <input type="date" value={nDate} onChange={(e) => setNDate(e.target.value)} />
           </label>
@@ -289,16 +349,20 @@ export default function PurchasesPage(): React.JSX.Element {
               ))}
             </ul>
           )}
-          {pick.trim() && options.length === 0 && (
+          {pick.trim() && (
             <p className="muted">
-              No product matches. Add it first in “Products &amp; stock” (with 0 opening stock),
-              then come back.
+              {options.length === 0 && 'No product matches. '}
+              <button className="link" onClick={addNew}>
+                Add “{pick.trim()}” as a new product
+              </button>{' '}
+              (it is created automatically with this purchase).
             </p>
           )}
           <table className="grid">
             <thead>
               <tr>
                 <th>Product</th>
+                <th>Selling price (new products)</th>
                 <th>Quantity bought</th>
                 <th>Total cost for this quantity</th>
                 <th className="num">Cost each</th>
@@ -312,33 +376,47 @@ export default function PurchasesPage(): React.JSX.Element {
                     ? Math.round((parsed[i].total as number) / parsed[i].qty)
                     : null
                 return (
-                  <tr key={l.product.id}>
-                    <td>{l.product.name}</td>
+                  <tr key={l.key}>
+                    <td>
+                      {lineName(l)}
+                      {!l.product && <span className="muted"> (new)</span>}
+                    </td>
+                    <td>
+                      {l.product ? (
+                        <span className="muted">{m(l.product.priceMinor)}</span>
+                      ) : (
+                        <input
+                          value={l.price}
+                          inputMode="decimal"
+                          aria-label={`Selling price of ${lineName(l)}`}
+                          placeholder="e.g. 250"
+                          onChange={(e) => setLine(l.key, { price: e.target.value })}
+                        />
+                      )}
+                    </td>
                     <td>
                       <input
                         value={l.qty}
                         inputMode="numeric"
-                        aria-label={`Quantity of ${l.product.name}`}
-                        onChange={(e) => setLine(l.product.id, { qty: e.target.value })}
+                        aria-label={`Quantity of ${lineName(l)}`}
+                        onChange={(e) => setLine(l.key, { qty: e.target.value })}
                       />
                     </td>
                     <td>
                       <input
                         value={l.total}
                         inputMode="decimal"
-                        aria-label={`Total cost of ${l.product.name}`}
+                        aria-label={`Total cost of ${lineName(l)}`}
                         placeholder="e.g. 10000"
-                        onChange={(e) => setLine(l.product.id, { total: e.target.value })}
+                        onChange={(e) => setLine(l.key, { total: e.target.value })}
                       />
                     </td>
                     <td className="num">{each === null ? '-' : m(each)}</td>
                     <td>
                       <button
                         className="danger"
-                        aria-label={`Remove ${l.product.name}`}
-                        onClick={() =>
-                          setLines((cur) => cur.filter((x) => x.product.id !== l.product.id))
-                        }
+                        aria-label={`Remove ${lineName(l)}`}
+                        onClick={() => setLines((cur) => cur.filter((x) => x.key !== l.key))}
                       >
                         ×
                       </button>
@@ -348,7 +426,7 @@ export default function PurchasesPage(): React.JSX.Element {
               })}
               {!lines.length && (
                 <tr>
-                  <td colSpan={5} className="muted center">
+                  <td colSpan={6} className="muted center">
                     Add the products you bought.
                   </td>
                 </tr>
@@ -359,9 +437,23 @@ export default function PurchasesPage(): React.JSX.Element {
             Note (optional)
             <input value={note} onChange={(e) => setNote(e.target.value)} />
           </label>
+          <label>
+            Paid now (leave empty if paid in full)
+            <input
+              value={paid}
+              inputMode="decimal"
+              placeholder={minorToInput(grand)}
+              aria-label="Paid now"
+              onChange={(e) => setPaid(e.target.value)}
+            />
+          </label>
           <div className="row total">
             <span>Total</span>
             <span>{m(grand)}</span>
+          </div>
+          <div className="row">
+            <span>Still due to supplier</span>
+            <span>{paidNow === null || paidNow > grand ? '-' : m(grand - paidNow)}</span>
           </div>
           <div className="row-end">
             <button onClick={reset}>Cancel</button>
@@ -380,6 +472,7 @@ export default function PurchasesPage(): React.JSX.Element {
             <th>Supplier</th>
             <th>Covers</th>
             <th className="num">Total</th>
+            <th className="num">Due</th>
             <th></th>
           </tr>
         </thead>
@@ -394,6 +487,9 @@ export default function PurchasesPage(): React.JSX.Element {
                   {p.items.length ? p.items.map((i) => `${i.qty} ${i.name}`).join(', ') : p.note}
                 </td>
                 <td className="num">{m(p.totalMinor)}</td>
+                <td className={`num ${p.totalMinor > p.paidMinor ? 'err' : ''}`}>
+                  {p.totalMinor > p.paidMinor ? m(p.totalMinor - p.paidMinor) : '-'}
+                </td>
                 <td>
                   {p.items.length > 0 && (
                     <button onClick={() => setOpen(open === p.id ? null : p.id)}>
@@ -404,7 +500,7 @@ export default function PurchasesPage(): React.JSX.Element {
               </tr>
               {open === p.id && (
                 <tr>
-                  <td colSpan={6}>
+                  <td colSpan={7}>
                     <ul className="detail">
                       {p.items.map((i) => (
                         <li key={i.id}>
@@ -420,7 +516,7 @@ export default function PurchasesPage(): React.JSX.Element {
           ))}
           {!history.length && (
             <tr>
-              <td colSpan={6} className="muted center">
+              <td colSpan={7} className="muted center">
                 No purchases recorded yet.
               </td>
             </tr>

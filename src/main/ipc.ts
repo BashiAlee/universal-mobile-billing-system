@@ -5,6 +5,7 @@ import type { Result } from '../shared/types'
 import * as products from './services/products'
 import * as bills from './services/bills'
 import * as purchases from './services/purchases'
+import * as parties from './services/parties'
 import * as daybook from './services/daybook'
 import * as dashboard from './services/dashboard'
 import * as reports from './services/reports'
@@ -85,4 +86,15 @@ export function registerIpc(db: Db): void {
   )
   handle('purchases:list', (search?: string) => purchases.listPurchases(db, search))
   handle('purchases:suppliers', () => purchases.listSuppliers(db))
+
+  handle('parties:list', (search?: string) => parties.listParties(db, search))
+  handle('parties:save', (input: Parameters<typeof parties.saveParty>[1]) =>
+    parties.saveParty(db, input)
+  )
+  handle('parties:delete', (id: number) => parties.deleteParty(db, id))
+  handle('parties:ledger', (id: number) => parties.getLedger(db, id))
+  handle('parties:pay', (input: Parameters<typeof parties.recordPayment>[1]) =>
+    parties.recordPayment(db, input)
+  )
+  handle('parties:deletePayment', (id: number) => parties.deletePayment(db, id))
 }

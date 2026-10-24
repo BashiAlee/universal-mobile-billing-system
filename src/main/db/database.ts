@@ -113,6 +113,36 @@ const MIGRATIONS: string[] = [
     is_default INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL
   );
+  `,
+  `
+  -- Parties (suppliers): who we buy from, what we owe them, and the payments we have made.
+  -- Balance = opening + sum(purchase total - paid at purchase) - sum(later payments); positive means we owe them.
+  CREATE TABLE parties (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    phone TEXT NOT NULL DEFAULT '',
+    address TEXT NOT NULL DEFAULT '',
+    notes TEXT NOT NULL DEFAULT '',
+    opening_minor INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL
+  );
+  CREATE TABLE party_payments (
+    id INTEGER PRIMARY KEY,
+    party_id INTEGER NOT NULL REFERENCES parties(id),
+    amount_minor INTEGER NOT NULL CHECK (amount_minor > 0),
+    day TEXT NOT NULL,
+    note TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX idx_party_payments_party ON party_payments(party_id);
+  ALTER TABLE purchases ADD COLUMN party_id INTEGER REFERENCES parties(id);
+  ALTER TABLE purchases ADD COLUMN paid_minor INTEGER NOT NULL DEFAULT 0;
+  CREATE INDEX idx_purchases_party ON purchases(party_id);
+  -- Purchases made before parties existed were treated as fully paid, so every balance starts at zero.
+  UPDATE purchases SET paid_minor = total_minor;
+  INSERT INTO parties (name, created_at)
+    SELECT supplier_name, MIN(created_at) FROM purchases GROUP BY supplier_name COLLATE NOCASE;
+  UPDATE purchases SET party_id = (SELECT id FROM parties WHERE parties.name = purchases.supplier_name);
   `
 ]
 

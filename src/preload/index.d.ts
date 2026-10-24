@@ -9,6 +9,10 @@ import type {
   Purchase,
   PurchaseInput,
   SupplierNoteInput,
+  Party,
+  PartyInput,
+  PartyLedger,
+  PartyPaymentInput,
   Report,
   ReportRange,
   Dashboard,
@@ -66,6 +70,14 @@ interface TypedApi {
     note: (input: SupplierNoteInput) => Promise<Result<Purchase>>
     list: (search?: string) => Promise<Result<Purchase[]>>
     suppliers: () => Promise<Result<string[]>>
+  }
+  parties: {
+    list: (search?: string) => Promise<Result<Party[]>>
+    save: (input: PartyInput) => Promise<Result<Party>>
+    delete: (id: number) => Promise<Result<void>>
+    ledger: (id: number) => Promise<Result<PartyLedger>>
+    pay: (input: PartyPaymentInput) => Promise<Result<Party>>
+    deletePayment: (id: number) => Promise<Result<void>>
   }
   bills: {
     create: (input: BillInput) => Promise<Result<Bill>>

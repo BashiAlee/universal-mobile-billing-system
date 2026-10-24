@@ -5,6 +5,7 @@ import { PrintArea, type PrintJob } from './components/Print'
 import BillingPage from './pages/Billing'
 import ProductsPage from './pages/Products'
 import PurchasesPage from './pages/Purchases'
+import PartiesPage from './pages/Parties'
 import BillsPage from './pages/Bills'
 import DashboardPage from './pages/Dashboard'
 import DayBookPage from './pages/DayBook'
@@ -18,6 +19,7 @@ type Tab =
   | 'products'
   | 'labeldesign'
   | 'purchases'
+  | 'parties'
   | 'bills'
   | 'daybook'
   | 'reports'
@@ -28,6 +30,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'products', label: 'Products & stock' },
   { id: 'labeldesign', label: 'Label designer' },
   { id: 'purchases', label: 'Purchases' },
+  { id: 'parties', label: 'Parties' },
   { id: 'bills', label: 'Bill history' },
   { id: 'daybook', label: 'Day book' },
   { id: 'reports', label: 'Reports' },
@@ -66,6 +69,7 @@ function Shell(): React.JSX.Element {
           {tab === 'products' && <ProductsPage onPrint={setJob} />}
           {tab === 'labeldesign' && <LabelDesignerPage onPrint={setJob} />}
           {tab === 'purchases' && <PurchasesPage />}
+          {tab === 'parties' && <PartiesPage />}
           {tab === 'bills' && <BillsPage onPrint={setJob} />}
           {tab === 'daybook' && <DayBookPage />}
           {tab === 'reports' && <ReportsPage />}

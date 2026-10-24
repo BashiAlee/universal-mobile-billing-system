@@ -1,22 +1,63 @@
 import type { Db } from '../db/database'
 import { transaction } from '../db/database'
-import type { Purchase, PurchaseInput, PurchaseItem, SupplierNoteInput } from '../../shared/types'
-import { getProduct, recordMovement, likePattern, MAX_QTY, MAX_PRICE_MINOR } from './products'
+import type {
+  NewProductInput,
+  Purchase,
+  PurchaseInput,
+  PurchaseItem,
+  SupplierNoteInput
+} from '../../shared/types'
+import {
+  getProduct,
+  insertProduct,
+  recordMovement,
+  likePattern,
+  MAX_QTY,
+  MAX_PRICE_MINOR
+} from './products'
+import { findOrCreateParty, getParty } from './parties'
+
+/** Resolves the party a purchase belongs to: an existing id, or a name that is found or created. */
+function resolveParty(
+  db: Db,
+  partyId?: number,
+  supplierName?: string
+): { id: number; name: string } {
+  if (partyId !== undefined) {
+    const p = getParty(db, partyId)
+    if (!p) throw new Error('Party not found')
+    return { id: p.id, name: p.name }
+  }
+  const id = findOrCreateParty(db, supplierName ?? '')
+  return { id, name: getParty(db, id)!.name }
+}
+
+function checkPaid(paid: number | undefined, total: number): number {
+  const v = paid ?? total
+  if (!Number.isInteger(v) || v < 0) throw new Error('Amount paid must be 0 or more')
+  if (v > total)
+    throw new Error('Amount paid cannot be more than the total (record extra money as a payment)')
+  return v
+}
 
 /**
  * Records goods bought from a supplier: adds the quantity to stock (audit reason 'purchase')
  * and updates each product's cost price to this purchase's per-unit cost (rounded to a whole minor unit).
  */
 export function createPurchase(db: Db, input: PurchaseInput): Purchase {
-  const supplier = input.supplierName?.trim()
-  if (!supplier) throw new Error('Supplier name is required')
+  if (input.partyId === undefined && !input.supplierName?.trim())
+    throw new Error('Supplier name is required')
   if (!Array.isArray(input.items) || !input.items.length)
     throw new Error('Add at least one item to the purchase')
 
-  // Merge repeated lines for the same product.
-  const merged = new Map<number, { qty: number; total: number }>()
+  // Merge repeated lines for the same existing product; each new product is its own line.
+  type Line = { productId?: number; newProduct?: NewProductInput; qty: number; total: number }
+  const merged = new Map<number | object, Line>()
   for (const l of input.items) {
-    if (!l || !Number.isInteger(l.productId)) throw new Error('Invalid item on the purchase')
+    if (!l || (l.productId === undefined) === (l.newProduct === undefined))
+      throw new Error('Invalid item on the purchase')
+    if (l.productId !== undefined && !Number.isInteger(l.productId))
+      throw new Error('Invalid item on the purchase')
     if (!Number.isInteger(l.qty) || l.qty <= 0 || l.qty > MAX_QTY)
       throw new Error(
         `Quantity must be a whole number from 1 to ${MAX_QTY.toLocaleString('en-US')}`
@@ -24,24 +65,46 @@ export function createPurchase(db: Db, input: PurchaseInput): Purchase {
     if (!Number.isInteger(l.totalCostMinor) || l.totalCostMinor < 0)
       throw new Error('Cost must be a valid amount (0 or more)')
     if (l.totalCostMinor > MAX_PRICE_MINOR * 1000) throw new Error('Cost is too large')
-    const cur = merged.get(l.productId) ?? { qty: 0, total: 0 }
-    merged.set(l.productId, { qty: cur.qty + l.qty, total: cur.total + l.totalCostMinor })
+    if (l.newProduct) {
+      merged.set({}, { newProduct: l.newProduct, qty: l.qty, total: l.totalCostMinor })
+      continue
+    }
+    const cur = merged.get(l.productId as number) ?? { productId: l.productId, qty: 0, total: 0 }
+    merged.set(l.productId as number, {
+      productId: l.productId,
+      qty: cur.qty + l.qty,
+      total: cur.total + l.totalCostMinor
+    })
   }
+  const total = [...merged.values()].reduce((a, l) => a + l.total, 0)
+  const paid = checkPaid(input.paidMinor, total)
 
   return transaction(db, () => {
     const createdAt = new Date().toISOString()
+    const party = resolveParty(db, input.partyId, input.supplierName)
     const res = db
       .prepare(
-        'INSERT INTO purchases (purchase_no, created_at, supplier_name, note, total_minor) VALUES (?, ?, ?, ?, 0)'
+        'INSERT INTO purchases (purchase_no, created_at, supplier_name, party_id, note, total_minor, paid_minor) VALUES (?, ?, ?, ?, ?, 0, ?)'
       )
-      .run(`tmp-${crypto.randomUUID()}`, createdAt, supplier, input.note?.trim() ?? '')
+      .run(
+        `tmp-${crypto.randomUUID()}`,
+        createdAt,
+        party.name,
+        party.id,
+        input.note?.trim() ?? '',
+        paid
+      )
     const id = Number(res.lastInsertRowid)
     const purchaseNo = `PUR-${String(id).padStart(6, '0')}`
     let grand = 0
 
-    for (const [productId, { qty, total }] of merged) {
-      const p = getProduct(db, productId)
+    for (const { productId: existingId, newProduct, qty, total } of merged.values()) {
+      // A product typed in on the purchase is created here, inside the same transaction as the stock.
+      const p = newProduct
+        ? insertProduct(db, { ...newProduct, stockQty: 0 })
+        : getProduct(db, existingId as number)
       if (!p || !p.active) throw new Error('A product on this purchase no longer exists')
+      const productId = p.id
       const unit = Math.round(total / qty)
       db.prepare(
         `INSERT INTO purchase_items (purchase_id, product_id, code, name, qty, unit_cost_minor, line_total_minor)
@@ -67,8 +130,8 @@ export function createPurchase(db: Db, input: PurchaseInput): Purchase {
  * It has no items and never touches stock or product costs.
  */
 export function createSupplierNote(db: Db, input: SupplierNoteInput): Purchase {
-  const supplier = input.supplierName?.trim()
-  if (!supplier) throw new Error('Supplier name is required')
+  if (input.partyId === undefined && !input.supplierName?.trim())
+    throw new Error('Supplier name is required')
   const description = input.description?.trim()
   if (!description) throw new Error('Describe what you bought')
   if (!Number.isInteger(input.amountMinor) || input.amountMinor <= 0)
@@ -80,12 +143,22 @@ export function createSupplierNote(db: Db, input: SupplierNoteInput): Purchase {
     if (!d || Number.isNaN(d.getTime())) throw new Error('Enter a valid date')
     createdAt = d.toISOString()
   }
+  const paid = checkPaid(input.paidMinor, input.amountMinor)
   return transaction(db, () => {
+    const party = resolveParty(db, input.partyId, input.supplierName)
     const res = db
       .prepare(
-        'INSERT INTO purchases (purchase_no, created_at, supplier_name, note, total_minor) VALUES (?, ?, ?, ?, ?)'
+        'INSERT INTO purchases (purchase_no, created_at, supplier_name, party_id, note, total_minor, paid_minor) VALUES (?, ?, ?, ?, ?, ?, ?)'
       )
-      .run(`tmp-${crypto.randomUUID()}`, createdAt, supplier, description, input.amountMinor)
+      .run(
+        `tmp-${crypto.randomUUID()}`,
+        createdAt,
+        party.name,
+        party.id,
+        description,
+        input.amountMinor,
+        paid
+      )
     const id = Number(res.lastInsertRowid)
     db.prepare('UPDATE purchases SET purchase_no = ? WHERE id = ?').run(
       `PUR-${String(id).padStart(6, '0')}`,
@@ -100,8 +173,10 @@ interface PurchaseRow {
   purchase_no: string
   created_at: string
   supplier_name: string
+  party_id: number | null
   note: string
   total_minor: number
+  paid_minor: number
 }
 
 function hydrate(db: Db, r: PurchaseRow): Purchase {
@@ -130,9 +205,11 @@ function hydrate(db: Db, r: PurchaseRow): Purchase {
     id: r.id,
     purchaseNo: r.purchase_no,
     createdAt: r.created_at,
+    partyId: r.party_id,
     supplierName: r.supplier_name,
     note: r.note,
     totalMinor: r.total_minor,
+    paidMinor: r.paid_minor,
     items
   }
 }
@@ -152,11 +229,11 @@ export function listPurchases(db: Db, search = '', limit = 200): Purchase[] {
   return rows.map((r) => hydrate(db, r))
 }
 
-/** Distinct supplier names used before, for quick re-selection. */
+/** Names of all parties, for quick re-selection. */
 export function listSuppliers(db: Db): string[] {
   return (
-    db
-      .prepare('SELECT DISTINCT supplier_name AS n FROM purchases ORDER BY n COLLATE NOCASE')
-      .all() as unknown as { n: string }[]
+    db.prepare('SELECT name AS n FROM parties ORDER BY n COLLATE NOCASE').all() as unknown as {
+      n: string
+    }[]
   ).map((r) => r.n)
 }

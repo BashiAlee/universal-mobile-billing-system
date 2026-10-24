@@ -2,6 +2,19 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com). Versions follow SemVer.
 
+## [0.7.0] - 2026-10-24: Parties (suppliers) and balances
+
+### Added
+- **Parties** tab: suppliers with phone/address/notes, an optional opening balance (what you owed before using the app, either direction), total bought, total paid and the **balance** (you owe / they owe you). Add, edit, delete (only when it has no history), search.
+- **Pay**: record money paid to a party later (date, note); a **Ledger** shows every purchase and payment with a running balance; a wrong payment can be deleted.
+- Purchases now have a **Paid now** amount (empty = paid in full); the unpaid part is added to that party's balance. History shows a Due column. Quick notes can also be part-paid.
+- Purchases can **create a new product on the spot** ("Add '<name>' as a new product" + its selling price): it is created with the purchase, gets the quantity as stock and the unit cost, all in one transaction. Products can still be added by hand on Products & stock.
+- Typing a supplier name that does not exist creates the party automatically.
+- Schema v7: tables `parties`, `party_payments`; `purchases.party_id`, `purchases.paid_minor`. Upgrade turns existing supplier names into parties (case-insensitive) and treats old purchases as fully paid, so every balance starts at zero. IPC `parties:list/save/delete/ledger/pay/deletePayment`; `services/parties.ts`.
+
+### Known limits
+- Day book, reports and dashboard still count a purchase as supplier spend on the day it was bought (whole total), not on the day it was paid; later payments are not added again. Cash-basis reporting is not built.
+
 ## [0.6.0] - 2026-10-24: Label designer
 
 ### Added

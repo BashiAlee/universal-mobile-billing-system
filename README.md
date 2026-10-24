@@ -4,7 +4,7 @@ Offline desktop app for small shops: manage products and stock, generate a QR co
 
 - **Target platform:** Windows (first release). Code is cross-platform Electron, but only Windows is a goal for now.
 - **Data:** stored locally in a SQLite file per installation. No internet or server needed.
-- **Status:** working version v0.6.0 (QA-audited, see [docs/QA_REPORT.md](docs/QA_REPORT.md)). See [docs/TASKS.md](docs/TASKS.md) for what is done and pending.
+- **Status:** working version v0.7.0 (QA-audited, see [docs/QA_REPORT.md](docs/QA_REPORT.md)). See [docs/TASKS.md](docs/TASKS.md) for what is done and pending.
 
 ## Features (v0.1.0)
 
@@ -19,6 +19,7 @@ Offline desktop app for small shops: manage products and stock, generate a QR co
 | Discount, tax, payment method, customer name | Done, tested |
 | Receipt in the supplied style (dashed sections, TOTAL AMOUNT, CASH, CHANGE, THANK YOU, bill barcode), bill history, reprint | Done. Layout checked on rendered output; **not yet on a real printer** |
 | Cash received and change on the billing screen | Done, tested |
+| Parties (suppliers): balance owed, payments, ledger, part-payment on purchases, new products created from a purchase | Done, tested |
 | Purchases from suppliers (e.g. 200 covers from ABC Traders for 10000): adds stock, sets cost price, history | Done, tested |
 | Quick note: just record supplier, what you bought and the cost, without touching stock | Done, tested |
 | Printer settings: receipt width 58/80 mm, label size, copies per label | Done (layout not yet verified on the XPrinter) |
