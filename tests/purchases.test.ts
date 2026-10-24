@@ -105,7 +105,7 @@ describe('purchases (supplier bills)', () => {
     const db = memoryDb()
     migrate(db)
     expect((db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version).toBe(
-      7
+      9
     )
   })
 

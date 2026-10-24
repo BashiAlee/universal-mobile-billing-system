@@ -143,6 +143,36 @@ const MIGRATIONS: string[] = [
   INSERT INTO parties (name, created_at)
     SELECT supplier_name, MIN(created_at) FROM purchases GROUP BY supplier_name COLLATE NOCASE;
   UPDATE purchases SET party_id = (SELECT id FROM parties WHERE parties.name = purchases.supplier_name);
+  `,
+  `
+  -- Product details (phones, covers, ...) and per-unit IMEI / serial tracking.
+  ALTER TABLE products ADD COLUMN category TEXT NOT NULL DEFAULT '';
+  ALTER TABLE products ADD COLUMN brand TEXT NOT NULL DEFAULT '';
+  ALTER TABLE products ADD COLUMN model TEXT NOT NULL DEFAULT '';
+  ALTER TABLE products ADD COLUMN storage TEXT NOT NULL DEFAULT '';
+  ALTER TABLE products ADD COLUMN ram TEXT NOT NULL DEFAULT '';
+  ALTER TABLE products ADD COLUMN color TEXT NOT NULL DEFAULT '';
+  ALTER TABLE products ADD COLUMN compatible_with TEXT NOT NULL DEFAULT '';
+  ALTER TABLE products ADD COLUMN track_serial INTEGER NOT NULL DEFAULT 0;
+  -- One row per physical unit of a tracked product. products.stock_qty stays equal to the in-stock count.
+  CREATE TABLE serial_units (
+    id INTEGER PRIMARY KEY,
+    product_id INTEGER NOT NULL REFERENCES products(id),
+    serial TEXT NOT NULL UNIQUE,
+    condition TEXT NOT NULL DEFAULT 'new' CHECK (condition IN ('new', 'used')),
+    cost_minor INTEGER NOT NULL DEFAULT 0,
+    purchase_id INTEGER REFERENCES purchases(id),
+    status TEXT NOT NULL DEFAULT 'in_stock' CHECK (status IN ('in_stock', 'sold')),
+    bill_item_id INTEGER REFERENCES bill_items(id),
+    created_at TEXT NOT NULL,
+    sold_at TEXT
+  );
+  CREATE INDEX idx_serial_units_product ON serial_units(product_id, status);
+  `,
+  `
+  -- Dual-SIM phones have a second IMEI. It identifies the same unit and must be unique too.
+  ALTER TABLE serial_units ADD COLUMN serial2 TEXT;
+  CREATE UNIQUE INDEX idx_serial_units_serial2 ON serial_units(serial2) WHERE serial2 IS NOT NULL;
   `
 ]
 

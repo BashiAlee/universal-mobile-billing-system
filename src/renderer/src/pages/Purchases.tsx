@@ -12,7 +12,19 @@ interface Line {
   price: string
   qty: string
   total: string
+  /** Phones: the IMEI of every unit bought (this list is the quantity). */
+  serials: string[]
+  /** Second IMEI of each phone in `serials` ('' when it has only one). */
+  serials2: string[]
+  serialInput: string
+  serial2Input: string
+  /** Phones with two IMEIs (dual SIM): ask for both. */
+  dual: boolean
+  condition: 'new' | 'used'
+  /** A new product that should be tracked by IMEI. */
+  trackNew: boolean
 }
+const isTracked = (l: Line): boolean => (l.product ? l.product.trackSerial : l.trackNew)
 const lineName = (l: Line): string => l.product?.name ?? l.newName ?? ''
 
 export default function PurchasesPage(): React.JSX.Element {
@@ -67,7 +79,23 @@ export default function PurchasesPage(): React.JSX.Element {
     setLines((cur) =>
       cur.some((l) => l.product?.id === p.id)
         ? cur
-        : [...cur, { key: `p${p.id}`, product: p, price: '', qty: '', total: '' }]
+        : [
+            ...cur,
+            {
+              key: `p${p.id}`,
+              product: p,
+              price: '',
+              qty: '',
+              total: '',
+              serials: [],
+              serials2: [],
+              serialInput: '',
+              serial2Input: '',
+              dual: false,
+              condition: 'new',
+              trackNew: false
+            }
+          ]
     )
     setPick('')
     setOptions([])
@@ -80,7 +108,20 @@ export default function PurchasesPage(): React.JSX.Element {
     if (!name) return
     setLines((cur) => [
       ...cur,
-      { key: `n${Date.now()}-${cur.length}`, newName: name, price: '', qty: '', total: '' }
+      {
+        key: `n${Date.now()}-${cur.length}`,
+        newName: name,
+        price: '',
+        qty: '',
+        total: '',
+        serials: [],
+        serials2: [],
+        serialInput: '',
+        serial2Input: '',
+        dual: false,
+        condition: 'new',
+        trackNew: false
+      }
     ])
     setPick('')
     setOptions([])
@@ -99,8 +140,26 @@ export default function PurchasesPage(): React.JSX.Element {
   const setLine = (key: string, patch: Partial<Line>): void =>
     setLines((cur) => cur.map((l) => (l.key === key ? { ...l, ...patch } : l)))
 
+  function addSerial(l: Line): void {
+    const v = l.serialInput.trim().toUpperCase()
+    const v2 = l.dual ? l.serial2Input.trim().toUpperCase() : ''
+    if (!v) return
+    const taken = lines.flatMap((x) => [...x.serials, ...x.serials2])
+    const dup = [v, v2].filter(Boolean).find((n) => taken.includes(n))
+    if (dup) return setMsg({ ok: false, text: `IMEI ${dup} is already added` })
+    if (v2 && v2 === v) return setMsg({ ok: false, text: 'The two IMEIs of a phone must differ' })
+    setMsg(null)
+    setLine(l.key, {
+      serials: [...l.serials, v],
+      serials2: [...l.serials2, v2],
+      serialInput: '',
+      serial2Input: ''
+    })
+    document.getElementById(`imei1-${l.key}`)?.focus()
+  }
+
   const parsed = lines.map((l) => ({
-    qty: Number(l.qty),
+    qty: isTracked(l) ? l.serials.length : Number(l.qty),
     total: parseMoney(l.total),
     price: parseMoney(l.price)
   }))
@@ -161,6 +220,8 @@ export default function PurchasesPage(): React.JSX.Element {
     if (!supplier.trim()) return setMsg({ ok: false, text: 'Enter the supplier name' })
     for (let i = 0; i < lines.length; i++) {
       const { qty, total } = parsed[i]
+      if (isTracked(lines[i]) && qty <= 0)
+        return setMsg({ ok: false, text: `Enter the IMEI of each ${lineName(lines[i])} bought` })
       if (!Number.isInteger(qty) || qty <= 0)
         return setMsg({ ok: false, text: `Enter a whole quantity for ${lineName(lines[i])}` })
       if (total === null)
@@ -183,7 +244,16 @@ export default function PurchasesPage(): React.JSX.Element {
         items: lines.map((l, i) => ({
           ...(l.product
             ? { productId: l.product.id }
-            : { newProduct: { name: l.newName as string, priceMinor: parsed[i].price as number } }),
+            : {
+                newProduct: {
+                  name: l.newName as string,
+                  priceMinor: parsed[i].price as number,
+                  trackSerial: l.trackNew
+                }
+              }),
+          ...(isTracked(l)
+            ? { serials: l.serials, serials2: l.serials2, condition: l.condition }
+            : {}),
           qty: parsed[i].qty,
           totalCostMinor: parsed[i].total as number
         }))
@@ -376,52 +446,166 @@ export default function PurchasesPage(): React.JSX.Element {
                     ? Math.round((parsed[i].total as number) / parsed[i].qty)
                     : null
                 return (
-                  <tr key={l.key}>
-                    <td>
-                      {lineName(l)}
-                      {!l.product && <span className="muted"> (new)</span>}
-                    </td>
-                    <td>
-                      {l.product ? (
-                        <span className="muted">{m(l.product.priceMinor)}</span>
-                      ) : (
+                  <Fragment key={l.key}>
+                    <tr>
+                      <td>
+                        {lineName(l)}
+                        {!l.product && <span className="muted"> (new)</span>}
+                      </td>
+                      <td>
+                        {l.product ? (
+                          <span className="muted">{m(l.product.priceMinor)}</span>
+                        ) : (
+                          <input
+                            value={l.price}
+                            inputMode="decimal"
+                            aria-label={`Selling price of ${lineName(l)}`}
+                            placeholder="e.g. 250"
+                            onChange={(e) => setLine(l.key, { price: e.target.value })}
+                          />
+                        )}
+                      </td>
+                      <td>
+                        {isTracked(l) ? (
+                          <strong aria-label={`Quantity of ${lineName(l)}`}>
+                            {l.serials.length}
+                          </strong>
+                        ) : (
+                          <input
+                            value={l.qty}
+                            inputMode="numeric"
+                            aria-label={`Quantity of ${lineName(l)}`}
+                            onChange={(e) => setLine(l.key, { qty: e.target.value })}
+                          />
+                        )}
+                      </td>
+                      <td>
                         <input
-                          value={l.price}
+                          value={l.total}
                           inputMode="decimal"
-                          aria-label={`Selling price of ${lineName(l)}`}
-                          placeholder="e.g. 250"
-                          onChange={(e) => setLine(l.key, { price: e.target.value })}
+                          aria-label={`Total cost of ${lineName(l)}`}
+                          placeholder="e.g. 10000"
+                          onChange={(e) => setLine(l.key, { total: e.target.value })}
                         />
-                      )}
-                    </td>
-                    <td>
-                      <input
-                        value={l.qty}
-                        inputMode="numeric"
-                        aria-label={`Quantity of ${lineName(l)}`}
-                        onChange={(e) => setLine(l.key, { qty: e.target.value })}
-                      />
-                    </td>
-                    <td>
-                      <input
-                        value={l.total}
-                        inputMode="decimal"
-                        aria-label={`Total cost of ${lineName(l)}`}
-                        placeholder="e.g. 10000"
-                        onChange={(e) => setLine(l.key, { total: e.target.value })}
-                      />
-                    </td>
-                    <td className="num">{each === null ? '-' : m(each)}</td>
-                    <td>
-                      <button
-                        className="danger"
-                        aria-label={`Remove ${lineName(l)}`}
-                        onClick={() => setLines((cur) => cur.filter((x) => x.key !== l.key))}
-                      >
-                        ×
-                      </button>
-                    </td>
-                  </tr>
+                      </td>
+                      <td className="num">{each === null ? '-' : m(each)}</td>
+                      <td>
+                        <button
+                          className="danger"
+                          aria-label={`Remove ${lineName(l)}`}
+                          onClick={() => setLines((cur) => cur.filter((x) => x.key !== l.key))}
+                        >
+                          ×
+                        </button>
+                      </td>
+                    </tr>
+                    {(isTracked(l) || !l.product) && (
+                      <tr>
+                        <td colSpan={6}>
+                          {!l.product && (
+                            <label className="inline">
+                              <input
+                                type="checkbox"
+                                checked={l.trackNew}
+                                onChange={(e) => setLine(l.key, { trackNew: e.target.checked })}
+                              />
+                              Track IMEI for this new product (phones)
+                            </label>
+                          )}
+                          {isTracked(l) && (
+                            <>
+                              <label className="inline">
+                                <input
+                                  type="checkbox"
+                                  checked={l.dual}
+                                  onChange={(e) => setLine(l.key, { dual: e.target.checked })}
+                                />
+                                Dual SIM: enter both IMEIs of each phone (still one phone)
+                              </label>
+                              <div
+                                className="prop-grid"
+                                style={{
+                                  gridTemplateColumns: l.dual ? '1fr 1fr 140px' : '1fr 140px'
+                                }}
+                              >
+                                <label>
+                                  {l.dual ? 'IMEI 1' : `IMEI of each ${lineName(l)}`} (scan or type,
+                                  then Enter)
+                                  <input
+                                    id={`imei1-${l.key}`}
+                                    value={l.serialInput}
+                                    aria-label={`IMEI of ${lineName(l)}`}
+                                    onChange={(e) =>
+                                      setLine(l.key, { serialInput: e.target.value })
+                                    }
+                                    onKeyDown={(e) => {
+                                      if (e.key !== 'Enter') return
+                                      e.preventDefault()
+                                      if (l.dual) document.getElementById(`imei2-${l.key}`)?.focus()
+                                      else addSerial(l)
+                                    }}
+                                  />
+                                </label>
+                                {l.dual && (
+                                  <label>
+                                    IMEI 2 (then Enter)
+                                    <input
+                                      id={`imei2-${l.key}`}
+                                      value={l.serial2Input}
+                                      aria-label={`IMEI 2 of ${lineName(l)}`}
+                                      onChange={(e) =>
+                                        setLine(l.key, { serial2Input: e.target.value })
+                                      }
+                                      onKeyDown={(e) => {
+                                        if (e.key !== 'Enter') return
+                                        e.preventDefault()
+                                        addSerial(l)
+                                      }}
+                                    />
+                                  </label>
+                                )}
+                                <label>
+                                  Condition
+                                  <select
+                                    value={l.condition}
+                                    aria-label={`Condition of ${lineName(l)}`}
+                                    onChange={(e) =>
+                                      setLine(l.key, {
+                                        condition: e.target.value as 'new' | 'used'
+                                      })
+                                    }
+                                  >
+                                    <option value="new">New</option>
+                                    <option value="used">Used</option>
+                                  </select>
+                                </label>
+                              </div>
+                            </>
+                          )}
+                          {l.serials.length > 0 && (
+                            <div className="add-buttons">
+                              {l.serials.map((sn, k) => (
+                                <span key={sn} className="chip">
+                                  <code>{l.serials2[k] ? `${sn} / ${l.serials2[k]}` : sn}</code>
+                                  <button
+                                    aria-label={`Remove IMEI ${sn}`}
+                                    onClick={() =>
+                                      setLine(l.key, {
+                                        serials: l.serials.filter((_, n) => n !== k),
+                                        serials2: l.serials2.filter((_, n) => n !== k)
+                                      })
+                                    }
+                                  >
+                                    ×
+                                  </button>
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 )
               })}
               {!lines.length && (

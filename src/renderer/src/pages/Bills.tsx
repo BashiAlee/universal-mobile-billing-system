@@ -24,7 +24,7 @@ export default function BillsPage({
       <div className="toolbar">
         <h1>Bill history</h1>
         <input
-          placeholder="Search bill no. or customer"
+          placeholder="Search bill no., customer or IMEI"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           aria-label="Search bills"
@@ -63,7 +63,11 @@ export default function BillsPage({
                     <ul className="detail">
                       {b.items.map((i) => (
                         <li key={i.id}>
-                          {i.name} — {i.qty} × {formatMoney(i.unitPriceMinor, sym)} ={' '}
+                          {i.name}
+                          {i.serial
+                            ? ` (IMEI ${i.serial}${i.serial2 ? ` / ${i.serial2}` : ''})`
+                            : ''}{' '}
+                          — {i.qty} × {formatMoney(i.unitPriceMinor, sym)} ={' '}
                           {formatMoney(i.lineTotalMinor, sym)}
                         </li>
                       ))}

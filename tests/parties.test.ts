@@ -198,3 +198,47 @@ describe('parties (suppliers) and their balances', () => {
     )
   })
 })
+
+describe('what counts as money paid to suppliers, and the owed list', () => {
+  it('reports, day book and dashboard count only money actually paid, not what is still owed', async () => {
+    const { getReport } = await import('../src/main/services/reports')
+    const { getDayBook } = await import('../src/main/services/daybook')
+    const { getDashboard } = await import('../src/main/services/dashboard')
+    const db = memoryDb()
+    const p = createProduct(db, { name: 'A', priceMinor: 1 })
+    createPurchase(db, {
+      supplierName: 'Hub',
+      paidMinor: 2000,
+      items: [{ productId: p.id, qty: 1, totalCostMinor: 5000 }]
+    })
+    const party = listParties(db)[0]
+    const d = new Date()
+    const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    const range = { from: day, to: day }
+    expect(getReport(db, range).supplierSpendMinor).toBe(2000)
+    expect(getDayBook(db, day).supplierSpendMinor).toBe(2000)
+    expect(getDashboard(db, range).series.purchases).toEqual([2000])
+
+    recordPayment(db, { partyId: party.id, amountMinor: 1500 })
+    expect(getReport(db, range).supplierSpendMinor).toBe(3500)
+    expect(getDayBook(db, day).supplierSpendMinor).toBe(3500)
+
+    const owed = getDashboard(db, range).owed
+    expect(owed.totalMinor).toBe(1500)
+    expect(owed.parties).toEqual([
+      { id: party.id, name: 'Hub', purchasedMinor: 5000, paidMinor: 3500, balanceMinor: 1500 }
+    ])
+    // Profit never includes purchases or what is owed.
+    expect(getReport(db, range).profitMinor).toBe(0)
+  })
+  it('a party that is settled or owed money by the shop is not in the owed list', async () => {
+    const { getDashboard } = await import('../src/main/services/dashboard')
+    const db = memoryDb()
+    const a = saveParty(db, { name: 'Settled' })
+    const b = saveParty(db, { name: 'Advance' })
+    recordPayment(db, { partyId: b.id, amountMinor: 500 })
+    expect(a.balanceMinor).toBe(0)
+    const d = new Date().toLocaleDateString('en-CA')
+    expect(getDashboard(db, { from: d, to: d }).owed).toEqual({ totalMinor: 0, parties: [] })
+  })
+})

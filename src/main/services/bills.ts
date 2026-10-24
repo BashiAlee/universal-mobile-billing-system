@@ -3,6 +3,7 @@ import { transaction } from '../db/database'
 import type { Bill, BillInput, BillItem } from '../../shared/types'
 import { getProduct, recordMovement, likePattern, MAX_QTY } from './products'
 import { getSettings } from './settings'
+import { normalizeSerials } from './serials'
 
 /** Tax = subtotalAfterDiscount * rate, rounded half up to a whole minor unit. */
 export function computeTax(taxableMinor: number, taxRateBp: number): number {
@@ -21,6 +22,7 @@ export function createBill(db: Db, input: BillInput): Bill {
 
   // Merge duplicate lines for the same product.
   const qtyByProduct = new Map<number, number>()
+  const serialsByProduct = new Map<number, string[]>()
   for (const line of input.items) {
     if (!line || !Number.isInteger(line.productId)) throw new Error('Invalid item on the bill')
     if (!Number.isInteger(line.qty) || line.qty <= 0)
@@ -28,12 +30,25 @@ export function createBill(db: Db, input: BillInput): Bill {
     const merged = (qtyByProduct.get(line.productId) ?? 0) + line.qty
     if (merged > MAX_QTY) throw new Error('Quantity is too large')
     qtyByProduct.set(line.productId, merged)
+    if (line.serials !== undefined) {
+      const sers = normalizeSerials(line.serials)
+      if (sers.length !== line.qty)
+        throw new Error(`Quantity (${line.qty}) must match the number of IMEIs (${sers.length})`)
+      serialsByProduct.set(line.productId, [
+        ...(serialsByProduct.get(line.productId) ?? []),
+        ...sers
+      ])
+    }
   }
+  const allSerials = [...serialsByProduct.values()].flat()
+  const repeated = allSerials.find((x, i) => allSerials.indexOf(x) !== i)
+  if (repeated) throw new Error(`IMEI ${repeated} is on the bill twice`)
   const paymentMethod = input.paymentMethod || 'cash'
   if (!(PAYMENT_METHODS as readonly string[]).includes(paymentMethod))
     throw new Error('Unknown payment method')
 
   return transaction(db, () => {
+    const seenUnits = new Set<number>()
     const settings = getSettings(db)
     let subtotal = 0
     const lines: {
@@ -44,6 +59,9 @@ export function createBill(db: Db, input: BillInput): Bill {
       cost: number
       qty: number
       total: number
+      /** Set for a tracked unit: its IMEI row id and number. */
+      unitId?: number
+      serial?: string
     }[] = []
 
     for (const [productId, qty] of qtyByProduct) {
@@ -51,6 +69,40 @@ export function createBill(db: Db, input: BillInput): Bill {
       if (!p || !p.active) throw new Error('A product on this bill no longer exists')
       if (p.stockQty < qty)
         throw new Error(`Not enough stock for ${p.name} (have ${p.stockQty}, need ${qty})`)
+      const sers = serialsByProduct.get(productId)
+      if (p.trackSerial) {
+        if (sers?.length !== qty) throw new Error(`Choose the IMEI of every ${p.name} being sold`)
+        // A tracked product is billed one line per unit so each line carries its own IMEI and cost.
+        for (const serial of sers) {
+          const u = db
+            .prepare(
+              'SELECT id, product_id, status, cost_minor FROM serial_units WHERE serial = ? OR serial2 = ?'
+            )
+            .get(serial, serial) as
+            { id: number; product_id: number; status: string; cost_minor: number } | undefined
+          if (!u || u.product_id !== productId)
+            throw new Error(`IMEI ${serial} is not a ${p.name} in stock`)
+          if (u.status !== 'in_stock') throw new Error(`IMEI ${serial} is already sold`)
+          // The same phone can be named by either of its two IMEIs; it may only be on the bill once.
+          if (seenUnits.has(u.id)) throw new Error(`IMEI ${serial} is on the bill twice`)
+          seenUnits.add(u.id)
+          subtotal += p.priceMinor
+          if (subtotal > MAX_BILL_MINOR) throw new Error('Bill total is too large')
+          lines.push({
+            productId,
+            code: p.code,
+            name: p.name,
+            price: p.priceMinor,
+            cost: u.cost_minor,
+            qty: 1,
+            total: p.priceMinor,
+            unitId: u.id,
+            serial
+          })
+        }
+        continue
+      }
+      if (sers) throw new Error(`${p.name} is not tracked by IMEI`)
       const total = p.priceMinor * qty
       subtotal += total
       if (subtotal > MAX_BILL_MINOR) throw new Error('Bill total is too large')
@@ -99,7 +151,11 @@ export function createBill(db: Db, input: BillInput): Bill {
       `INSERT INTO bill_items (bill_id, product_id, code, name, unit_price_minor, qty, line_total_minor, unit_cost_minor) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
     )
     for (const l of lines) {
-      insItem.run(billId, l.productId, l.code, l.name, l.price, l.qty, l.total, l.cost)
+      const item = insItem.run(billId, l.productId, l.code, l.name, l.price, l.qty, l.total, l.cost)
+      if (l.unitId !== undefined)
+        db.prepare(
+          "UPDATE serial_units SET status = 'sold', bill_item_id = ?, sold_at = ? WHERE id = ?"
+        ).run(Number(item.lastInsertRowid), createdAt, l.unitId)
       db.prepare('UPDATE products SET stock_qty = stock_qty - ?, updated_at = ? WHERE id = ?').run(
         l.qty,
         createdAt,
@@ -126,7 +182,13 @@ interface BillRow {
 
 function hydrate(db: Db, r: BillRow): Bill {
   const items = (
-    db.prepare('SELECT * FROM bill_items WHERE bill_id = ? ORDER BY id').all(r.id) as unknown as {
+    db
+      .prepare(
+        `SELECT bi.*, (SELECT serial FROM serial_units WHERE bill_item_id = bi.id) AS serial,
+                (SELECT serial2 FROM serial_units WHERE bill_item_id = bi.id) AS serial2
+         FROM bill_items bi WHERE bi.bill_id = ? ORDER BY bi.id`
+      )
+      .all(r.id) as unknown as {
       id: number
       product_id: number | null
       code: string
@@ -134,6 +196,8 @@ function hydrate(db: Db, r: BillRow): Bill {
       unit_price_minor: number
       qty: number
       line_total_minor: number
+      serial: string | null
+      serial2: string | null
     }[]
   ).map((i): BillItem => ({
     id: i.id,
@@ -142,7 +206,9 @@ function hydrate(db: Db, r: BillRow): Bill {
     name: i.name,
     unitPriceMinor: i.unit_price_minor,
     qty: i.qty,
-    lineTotalMinor: i.line_total_minor
+    lineTotalMinor: i.line_total_minor,
+    serial: i.serial,
+    serial2: i.serial2
   }))
   return {
     id: r.id,
@@ -168,8 +234,11 @@ export function listBills(db: Db, search = '', limit = 200): Bill[] {
   const like = likePattern(search)
   const rows = db
     .prepare(
-      "SELECT * FROM bills WHERE bill_no LIKE ? ESCAPE '\\' OR customer_name LIKE ? ESCAPE '\\' ORDER BY id DESC LIMIT ?"
+      `SELECT * FROM bills WHERE bill_no LIKE ? ESCAPE '\\' OR customer_name LIKE ? ESCAPE '\\'
+         OR EXISTS (SELECT 1 FROM serial_units u JOIN bill_items bi ON bi.id = u.bill_item_id
+                    WHERE bi.bill_id = bills.id AND (u.serial LIKE ? ESCAPE '\\' OR u.serial2 LIKE ? ESCAPE '\\'))
+       ORDER BY id DESC LIMIT ?`
     )
-    .all(like, like, limit) as unknown as BillRow[]
+    .all(like, like, like, like, limit) as unknown as BillRow[]
   return rows.map((r) => hydrate(db, r))
 }

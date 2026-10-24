@@ -290,7 +290,7 @@ export default function ReportsPage(): React.JSX.Element {
               <span>{m(report.totalBilledMinor)}</span>
             </div>
             <div className="row">
-              <span>Spent on suppliers in this period</span>
+              <span>Paid to suppliers in this period</span>
               <span>-{m(report.supplierSpendMinor)}</span>
             </div>
           </div>

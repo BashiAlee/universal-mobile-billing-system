@@ -57,6 +57,8 @@ docs/              project documentation
 | `purchase_items` | `id` PK, `purchase_id` FK, `product_id` FK, `code`, `name`, `qty`, `unit_cost_minor`, `line_total_minor` |
 | `expenses` | `id` PK, `day` (YYYY-MM-DD), `title`, `amount_minor`, `created_at` (v5) |
 | `day_book` | `day` PK, `opening_minor` (NULL = carry forward), `notes` (v5) |
+| `products` extra columns (v8) | `category`, `brand`, `model`, `storage`, `ram`, `color`, `compatible_with` (all text, default ''), `track_serial` (0/1) |
+| `serial_units` | `id` PK, `product_id` FK, `serial` UNIQUE (upper-case), `serial2` UNIQUE when set (second IMEI of a dual-SIM phone, v9), `condition` (`new`/`used`), `cost_minor`, `purchase_id` FK, `status` (`in_stock`/`sold`), `bill_item_id` FK, `created_at`, `sold_at` (v8). `products.stock_qty` always equals the in-stock count for tracked products |
 | `parties` | `id` PK, `name` UNIQUE (nocase), `phone`, `address`, `notes`, `opening_minor` (owed before the app; negative = they owe us), `created_at` (v7). Balance is never stored: opening + sum(total - paid) - sum(payments) |
 | `party_payments` | `id` PK, `party_id` FK, `amount_minor` > 0, `day`, `note`, `created_at` (v7) |
 | `label_designs` | `id` PK, `name` UNIQUE (nocase), `width_mm`, `height_mm`, `code_type`, `elements` (JSON list of boxes in mm), `is_default`, `created_at` (v6) |
@@ -85,6 +87,10 @@ Every call returns `{ ok: true, data }` or `{ ok: false, error }`. Handlers neve
 | `purchases:create` | `PurchaseInput` | `Purchase` |
 | `purchases:list` | `search?` | `Purchase[]` |
 | `purchases:suppliers` | none | `string[]` |
+| `serials:list` | `{search?, productId?, status?}` | `SerialUnit[]` |
+| `serials:add` | `SerialAddInput` | `Product` |
+| `serials:remove` | unit id | void (in-stock only) |
+| `serials:get` | IMEI | `SerialUnit \| null` |
 | `parties:list` | search? | `Party[]` (with totals and balance) |
 | `parties:save` | `PartyInput` (id = update) | `Party` |
 | `parties:delete` | `id` | void (only without history) |

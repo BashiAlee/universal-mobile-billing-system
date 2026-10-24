@@ -378,3 +378,128 @@ test('parties: add a party with an opening balance', async () => {
   await f.getByRole('button', { name: 'Save' }).click()
   await expect(page.getByRole('row', { name: /Old Supplier/ })).toContainText('You owe Rs 7,500.00')
 })
+
+test('phones: details build the name, IMEIs are bought, sold on a bill, and can be looked up', async () => {
+  const IMEI1 = '356938035643809'
+  const IMEI2 = '356938035643817'
+  const IMEI1B = '356938035643900' // second SIM of phone 1: same phone, not a second phone
+  await page.getByRole('button', { name: 'Products & stock' }).click()
+  await page.getByRole('button', { name: '+ Add product' }).click()
+  const f = page.getByRole('dialog', { name: 'Product form' })
+  await f.getByLabel('Category').fill('Phone')
+  await f.getByLabel('Brand').fill('Samsung')
+  await f.getByLabel('Model').fill('A15')
+  await f.getByLabel('RAM (GB)').fill('6')
+  await f.getByLabel('Storage (GB)').fill('128')
+  await f.getByLabel('Color').fill('Black')
+  await f.getByLabel('Selling price').fill('45000')
+  await f.getByLabel(/Track IMEI/).check()
+  await f.getByRole('button', { name: 'Save' }).click()
+  // A new tracked phone opens the IMEI window straight away; this phone's IMEIs come from a purchase instead.
+  await page
+    .getByRole('dialog', { name: 'IMEI lookup' })
+    .getByRole('button', { name: 'Close' })
+    .click()
+  const row = page.getByRole('row', { name: /Samsung A15 6\/128 Black/ })
+  await expect(row).toBeVisible()
+  await expect(row).toContainText('Phone')
+
+  // Search matches words anywhere in the details.
+  await page.getByLabel('Search products').fill('a15 128')
+  await expect(row).toBeVisible()
+  await page.getByLabel('Search products').fill('')
+
+  await page.getByRole('button', { name: 'Purchases' }).click()
+  await page.getByRole('button', { name: '+ New purchase' }).click()
+  await page.getByLabel('Supplier').fill('Mobile Wholesale')
+  await page.getByLabel('Find product to add').fill('A15')
+  await page.getByRole('button', { name: /Samsung A15 6\/128 Black/ }).click()
+  const imeiBox = page.getByLabel('IMEI of Samsung A15 6/128 Black')
+  await page.getByLabel(/Dual SIM/).check()
+  const imei2Box = page.getByLabel('IMEI 2 of Samsung A15 6/128 Black')
+  await imeiBox.fill(IMEI1)
+  await imeiBox.press('Enter')
+  await imei2Box.fill(IMEI1B)
+  await imei2Box.press('Enter')
+  await imeiBox.fill(IMEI2) // a single-SIM phone: leave the second IMEI empty
+  await imeiBox.press('Enter')
+  await imei2Box.press('Enter')
+  await expect(page.getByLabel('Quantity of Samsung A15 6/128 Black')).toHaveText('2')
+  await page.getByLabel('Total cost of Samsung A15 6/128 Black').fill('80000')
+  await page.getByRole('button', { name: 'Save purchase & add to stock' }).click()
+  await expect(page.getByRole('status')).toContainText('stock updated')
+
+  await page.getByRole('button', { name: 'Products & stock' }).click()
+  await expect(page.getByRole('row', { name: /Samsung A15 6\/128 Black/ })).toContainText('2')
+
+  // Scanning the IMEI at the till puts exactly that phone on the bill.
+  await page.getByRole('button', { name: 'New bill' }).click()
+  const scan = page.getByLabel('Scan or search product')
+  await scan.fill(IMEI1B)
+  await scan.press('Enter')
+  await expect(page.getByRole('row', { name: /Samsung A15/ })).toContainText(IMEI1)
+  await page.getByRole('button', { name: 'Save & print bill' }).click()
+  await expect(page.getByRole('status')).toContainText('Saved INV-')
+
+  // The same phone cannot be sold twice.
+  await scan.fill(IMEI1)
+  await scan.press('Enter')
+  await expect(page.getByRole('status')).toContainText('already sold on INV-')
+
+  // The other phone: scanning the product asks nothing when only one unit is left.
+  await scan.fill('A15')
+  await scan.press('Enter')
+  await expect(page.getByRole('row', { name: /Samsung A15/ })).toContainText(IMEI2)
+
+  await page.getByRole('button', { name: 'Products & stock' }).click()
+  await page.getByRole('button', { name: 'IMEI lookup' }).click()
+  const dlg = page.getByRole('dialog', { name: 'IMEI lookup' })
+  await dlg.getByLabel('Search IMEI').fill('643900')
+  const hit = dlg.getByRole('row', { name: new RegExp(IMEI1B) })
+  await expect(hit).toContainText('Sold')
+  await expect(hit).toContainText('Mobile Wholesale')
+  await expect(hit).toContainText('INV-')
+})
+
+test('phones: a new tracked phone opens the IMEI window so its phones can be added and deleted', async () => {
+  // The previous test leaves its IMEI lookup window open.
+  const leftover = page.getByRole('dialog', { name: 'IMEI lookup' })
+  if (await leftover.isVisible()) await leftover.getByRole('button', { name: 'Close' }).click()
+  await page.getByRole('button', { name: 'Products & stock' }).click()
+  await page.getByRole('button', { name: '+ Add product' }).click()
+  const f = page.getByRole('dialog', { name: 'Product form' })
+  await f.getByLabel('Brand').fill('Tecno')
+  await f.getByLabel('Model').fill('Spark 20')
+  await f.getByLabel('Selling price').fill('30000')
+  await f.getByLabel(/Track IMEI/).check()
+  await f.getByRole('button', { name: 'Save' }).click()
+
+  const dlg = page.getByRole('dialog', { name: 'IMEI lookup' })
+  await expect(dlg.getByRole('group', { name: 'Add phones' })).toBeVisible()
+  await dlg.getByLabel('IMEI to add', { exact: true }).fill('860000000000011')
+  await dlg.getByLabel('IMEI to add', { exact: true }).press('Enter')
+  await expect(dlg.getByRole('status')).toContainText('In stock now: 1')
+  await dlg.getByLabel(/Dual SIM/).check()
+  await dlg.getByLabel('IMEI to add', { exact: true }).fill('860000000000029')
+  await dlg.getByLabel('IMEI to add', { exact: true }).press('Enter')
+  await dlg.getByLabel('Second IMEI to add').fill('860000000000037')
+  await dlg.getByLabel('Second IMEI to add').press('Enter')
+  await expect(dlg.getByRole('status')).toContainText('In stock now: 2')
+  await expect(dlg.getByRole('row', { name: /860000000000029/ })).toContainText('860000000000037')
+
+  // A phone entered by mistake can be deleted while it is in stock.
+  page.once('dialog', (d) => void d.accept())
+  await dlg.getByRole('button', { name: 'Delete IMEI 860000000000011' }).click()
+  await expect(dlg.getByRole('status')).toContainText('Deleted')
+  await dlg.getByRole('button', { name: 'Close' }).click()
+  await expect(page.getByRole('row', { name: /Tecno Spark 20/ })).toContainText('1')
+})
+
+test('dashboard ends with the money still owed to parties; unpaid balances are not spending', async () => {
+  await page.getByRole('button', { name: 'Dashboard' }).click()
+  const owed = page.getByRole('region', { name: 'Money owed to parties' })
+  await expect(owed).toBeVisible()
+  await expect(owed.getByRole('row', { name: /Gadget Hub/ })).toContainText('2,000.00')
+  await expect(owed.getByRole('row', { name: /Old Supplier/ })).toContainText('7,500.00')
+  await expect(owed).toContainText('9,500.00')
+})

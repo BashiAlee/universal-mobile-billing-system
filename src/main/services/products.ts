@@ -13,6 +13,14 @@ interface ProductRow {
   active: number
   created_at: string
   updated_at: string
+  category: string
+  brand: string
+  model: string
+  storage: string
+  ram: string
+  color: string
+  compatible_with: string
+  track_serial: number
 }
 
 export function toProduct(r: ProductRow): Product {
@@ -26,8 +34,40 @@ export function toProduct(r: ProductRow): Product {
     lowStockThreshold: r.low_stock_threshold,
     active: r.active === 1,
     createdAt: r.created_at,
-    updatedAt: r.updated_at
+    updatedAt: r.updated_at,
+    category: r.category,
+    brand: r.brand,
+    model: r.model,
+    storage: r.storage,
+    ram: r.ram,
+    color: r.color,
+    compatibleWith: r.compatible_with,
+    trackSerial: r.track_serial === 1
   }
+}
+
+const DETAIL_KEYS = [
+  'category',
+  'brand',
+  'model',
+  'storage',
+  'ram',
+  'color',
+  'compatibleWith'
+] as const
+
+/** The name typed by the user, or (when left empty) one built from the details: "Samsung A15 6/128 Black". */
+export function resolveName(input: ProductInput): string {
+  const typed = input.name?.trim()
+  if (typed) return typed
+  const memory = [input.ram?.trim(), input.storage?.trim()].filter(Boolean).join('/')
+  return [input.brand?.trim(), input.model?.trim(), memory, input.color?.trim()]
+    .filter(Boolean)
+    .join(' ')
+}
+
+function details(input: ProductInput): string[] {
+  return DETAIL_KEYS.map((k) => input[k]?.trim() ?? '')
 }
 
 const now = (): string => new Date().toISOString()
@@ -53,7 +93,12 @@ function assertInt(
 }
 
 function validate(input: ProductInput): void {
-  if (!input.name?.trim()) throw new Error('Product name is required')
+  if (!resolveName(input)) throw new Error('Product name is required')
+  for (const k of DETAIL_KEYS) {
+    const v = input[k]
+    if (v !== undefined && (typeof v !== 'string' || v.length > 60))
+      throw new Error(`${k} is too long (maximum 60 characters)`)
+  }
   assertInt(input.priceMinor, 'Price', 0, MAX_PRICE_MINOR)
   if (input.costMinor !== undefined) assertInt(input.costMinor, 'Cost', 0, MAX_PRICE_MINOR)
   if (input.stockQty !== undefined) assertInt(input.stockQty, 'Stock', 0, MAX_QTY)
@@ -84,23 +129,28 @@ export function createProduct(db: Db, input: ProductInput): Product {
 export function insertProduct(db: Db, input: ProductInput): Product {
   validate(input)
   const code = input.code?.trim()
+  if (input.trackSerial && (input.stockQty ?? 0) > 0)
+    throw new Error('IMEI-tracked products start with 0 stock; add the units by IMEI in a purchase')
   {
     const t = now()
     // Temporary unique code is replaced by the generated P-000123 style code when none was supplied.
     const res = db
       .prepare(
-        `INSERT INTO products (code, name, price_minor, cost_minor, stock_qty, low_stock_threshold, active, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)`
+        `INSERT INTO products (code, name, price_minor, cost_minor, stock_qty, low_stock_threshold, active, created_at, updated_at,
+           category, brand, model, storage, ram, color, compatible_with, track_serial)
+         VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         code || `tmp-${crypto.randomUUID()}`,
-        input.name.trim(),
+        resolveName(input),
         input.priceMinor,
         input.costMinor ?? 0,
         input.stockQty ?? 0,
         input.lowStockThreshold ?? 0,
         t,
-        t
+        t,
+        ...details(input),
+        input.trackSerial ? 1 : 0
       )
     const id = Number(res.lastInsertRowid)
     if (!code)
@@ -124,13 +174,34 @@ export function getProductByCode(db: Db, code: string): Product | null {
   return r ? toProduct(r) : null
 }
 
+const SEARCH_COLUMNS = [
+  'name',
+  'code',
+  'category',
+  'brand',
+  'model',
+  'storage',
+  'ram',
+  'color',
+  'compatible_with'
+]
+
+/** Every word typed must match somewhere (name, code, details or an IMEI), so "A15 128" finds Samsung A15 6/128. */
 export function listProducts(db: Db, search = '', includeInactive = false): Product[] {
-  const like = likePattern(search)
-  const rows = db
-    .prepare(
-      `SELECT * FROM products WHERE (name LIKE ? ESCAPE '\\' OR code LIKE ? ESCAPE '\\') ${includeInactive ? '' : 'AND active = 1'} ORDER BY name COLLATE NOCASE`
+  const words = search.trim().split(/\s+/).filter(Boolean)
+  const where: string[] = includeInactive ? [] : ['active = 1']
+  const args: string[] = []
+  for (const w of words.length ? words : ['']) {
+    const like = likePattern(w)
+    where.push(
+      `(${SEARCH_COLUMNS.map((c) => `${c} LIKE ? ESCAPE '\\'`).join(' OR ')}
+        OR EXISTS (SELECT 1 FROM serial_units u WHERE u.product_id = products.id AND (u.serial LIKE ? ESCAPE '\\' OR u.serial2 LIKE ? ESCAPE '\\')))`
     )
-    .all(like, like) as unknown as ProductRow[]
+    args.push(...SEARCH_COLUMNS.map(() => like), like, like)
+  }
+  const rows = db
+    .prepare(`SELECT * FROM products WHERE ${where.join(' AND ')} ORDER BY name COLLATE NOCASE`)
+    .all(...args) as unknown as ProductRow[]
   return rows.map(toProduct)
 }
 
@@ -138,15 +209,22 @@ export function updateProduct(db: Db, id: number, input: Omit<ProductInput, 'sto
   validate(input)
   const existing = getProduct(db, id)
   if (!existing) throw new Error('Product not found')
+  const track = input.trackSerial ?? existing.trackSerial
+  // Switching IMEI tracking on or off is only safe while there is no stock to account for.
+  if (track !== existing.trackSerial && existing.stockQty > 0)
+    throw new Error('Change IMEI tracking only when the product has 0 stock')
   db.prepare(
-    `UPDATE products SET code = ?, name = ?, price_minor = ?, cost_minor = ?, low_stock_threshold = ?, updated_at = ? WHERE id = ?`
+    `UPDATE products SET code = ?, name = ?, price_minor = ?, cost_minor = ?, low_stock_threshold = ?, updated_at = ?,
+       category = ?, brand = ?, model = ?, storage = ?, ram = ?, color = ?, compatible_with = ?, track_serial = ? WHERE id = ?`
   ).run(
     input.code?.trim() || existing.code,
-    input.name.trim(),
+    resolveName(input),
     input.priceMinor,
     input.costMinor ?? existing.costMinor,
     input.lowStockThreshold ?? existing.lowStockThreshold,
     now(),
+    ...details(input),
+    track ? 1 : 0,
     id
   )
   return getProduct(db, id)!
@@ -171,6 +249,10 @@ export function adjustStock(
   return transaction(db, () => {
     const p = getProduct(db, id)
     if (!p || !p.active) throw new Error('Product not found')
+    if (p.trackSerial)
+      throw new Error(
+        `${p.name} is tracked by IMEI: add units in a purchase and sell them on a bill`
+      )
     if (p.stockQty + delta > MAX_QTY) throw new Error('Resulting stock is too large')
     if (p.stockQty + delta < 0)
       throw new Error(`Not enough stock for ${p.name} (have ${p.stockQty})`)

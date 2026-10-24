@@ -333,7 +333,7 @@ export default function DayBookPage(): React.JSX.Element {
             )}
             {book.supplierSpendMinor > 0 && (
               <div className="row muted">
-                <span>Stock bought from suppliers today (info only)</span>
+                <span>Paid to suppliers today (info only)</span>
                 <span>{m(book.supplierSpendMinor)}</span>
               </div>
             )}

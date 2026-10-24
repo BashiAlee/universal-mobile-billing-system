@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { Product } from '../../../shared/types'
+import type { Product, SerialUnit } from '../../../shared/types'
 import { useSettings } from '../lib/useSettings'
 import { formatMoney, parseMoney } from '../lib/money'
 import type { PrintJob } from '../components/Print'
@@ -7,6 +7,8 @@ import type { PrintJob } from '../components/Print'
 interface Line {
   product: Product
   qty: number
+  /** Phones: the IMEI of each unit on the bill (qty equals how many). */
+  serials: string[]
 }
 
 export default function BillingPage({
@@ -20,6 +22,7 @@ export default function BillingPage({
   const [lines, setLines] = useState<Line[]>([])
   const [scan, setScan] = useState('')
   const [results, setResults] = useState<Product[]>([])
+  const [picking, setPicking] = useState<{ product: Product; units: SerialUnit[] } | null>(null)
   const [discount, setDiscount] = useState('')
   const [payment, setPayment] = useState('cash')
   const [customer, setCustomer] = useState('')
@@ -58,7 +61,42 @@ export default function BillingPage({
     setLines(next)
   }
 
+  /** Puts one specific phone (by IMEI) on the bill. */
+  function addSerial(p: Product, serial: string): void {
+    const cur = linesRef.current
+    if (cur.some((l) => l.serials.includes(serial))) {
+      setMsg({ ok: false, text: `IMEI ${serial} is already on this bill` })
+      return
+    }
+    setMsg(null)
+    const found = cur.find((l) => l.product.id === p.id)
+    updateLines(
+      found
+        ? cur.map((l) =>
+            l.product.id === p.id ? { ...l, qty: l.qty + 1, serials: [...l.serials, serial] } : l
+          )
+        : [...cur, { product: p, qty: 1, serials: [serial] }]
+    )
+  }
+
+  // A phone product: choose which unit (IMEI) is being sold. A single unit in stock is picked for you.
+  async function pickUnit(p: Product): Promise<void> {
+    const r = await window.api.serials.list({ productId: p.id, status: 'in_stock' })
+    const units = r.ok
+      ? r.data.filter((u) => !linesRef.current.some((l) => l.serials.includes(u.serial)))
+      : []
+    if (!units.length)
+      return setMsg({ ok: false, text: `No ${p.name} left to add (none in stock)` })
+    if (units.length === 1) return addSerial(p, units[0].serial)
+    setMsg(null)
+    setPicking({ product: p, units })
+  }
+
   function add(p: Product): void {
+    if (p.trackSerial) {
+      void pickUnit(p)
+      return
+    }
     const cur = linesRef.current
     const found = cur.find((l) => l.product.id === p.id)
     if ((found?.qty ?? 0) + 1 > p.stockQty) {
@@ -69,7 +107,7 @@ export default function BillingPage({
     updateLines(
       found
         ? cur.map((l) => (l.product.id === p.id ? { ...l, qty: l.qty + 1 } : l))
-        : [...cur, { product: p, qty: 1 }]
+        : [...cur, { product: p, qty: 1, serials: [] }]
     )
   }
 
@@ -81,6 +119,27 @@ export default function BillingPage({
       add(r.data)
       setResults([])
       return
+    }
+    // A scanned IMEI puts that exact phone on the bill.
+    const u = await window.api.serials.get(text)
+    if (u.ok && u.data) {
+      if (u.data.status === 'sold') {
+        setMsg({
+          ok: false,
+          text: `IMEI ${u.data.serial} was already sold on ${u.data.billNo}${
+            u.data.customerName ? ` to ${u.data.customerName}` : ''
+          }`
+        })
+        setTimeout(() => inputRef.current?.select(), 0)
+        return
+      }
+      const owner = await window.api.products.list(u.data.serial)
+      const p = owner.ok ? owner.data.find((x) => x.id === u.data?.productId) : undefined
+      if (p) {
+        addSerial(p, u.data.serial)
+        setResults([])
+        return
+      }
     }
     const s = await window.api.products.list(text)
     if (s.ok && s.data.length === 1) {
@@ -128,6 +187,16 @@ export default function BillingPage({
     )
   }
 
+  function removeSerial(id: number, serial: string): void {
+    updateLines(
+      linesRef.current.flatMap((l) => {
+        if (l.product.id !== id) return [l]
+        const serials = l.serials.filter((x) => x !== serial)
+        return serials.length ? [{ ...l, serials, qty: serials.length }] : []
+      })
+    )
+  }
+
   const tenderedMinor = payment === 'cash' && cashIn.trim() ? parseMoney(cashIn) : 0
   const change = tenderedMinor !== null && tenderedMinor > 0 ? tenderedMinor - total : 0
 
@@ -141,7 +210,11 @@ export default function BillingPage({
     setSaving(true)
     const r = await window.api.bills
       .create({
-        items: linesRef.current.map((l) => ({ productId: l.product.id, qty: l.qty })),
+        items: linesRef.current.map((l) => ({
+          productId: l.product.id,
+          qty: l.qty,
+          ...(l.product.trackSerial ? { serials: l.serials } : {})
+        })),
         discountMinor,
         paymentMethod: payment,
         customerName: customer,
@@ -192,6 +265,29 @@ export default function BillingPage({
             ))}
           </ul>
         )}
+        {picking && (
+          <div className="card" role="group" aria-label="Choose IMEI">
+            <strong>Which {picking.product.name}? Choose the IMEI:</strong>
+            <div className="add-buttons">
+              {picking.units.map((u) => (
+                <button
+                  key={u.id}
+                  onClick={() => {
+                    addSerial(picking.product, u.serial)
+                    setPicking(null)
+                    inputRef.current?.focus()
+                  }}
+                >
+                  {u.serial}
+                  {u.condition === 'used' ? ' (used)' : ''}
+                </button>
+              ))}
+              <button className="link" onClick={() => setPicking(null)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
         {msg && (
           <p className={msg.ok ? 'ok' : 'err'} role="status">
             {msg.text}
@@ -211,28 +307,54 @@ export default function BillingPage({
             <tbody>
               {lines.map((l) => (
                 <tr key={l.product.id}>
-                  <td>{l.product.name}</td>
+                  <td>
+                    {l.product.name}
+                    {l.serials.length > 0 && (
+                      <div>
+                        {l.serials.map((sn) => (
+                          <span key={sn} className="chip">
+                            <code>{sn}</code>
+                            <button
+                              aria-label={`Remove IMEI ${sn}`}
+                              onClick={() => {
+                                removeSerial(l.product.id, sn)
+                                inputRef.current?.focus()
+                              }}
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </td>
                   <td className="num">{m(l.product.priceMinor)}</td>
                   <td className="num qtycell">
-                    <button
-                      onClick={() => {
-                        setQty(l.product.id, l.qty - 1)
-                        inputRef.current?.focus()
-                      }}
-                      aria-label="Decrease"
-                    >
-                      −
-                    </button>
-                    <span className="qty">{l.qty}</span>
-                    <button
-                      onClick={() => {
-                        setQty(l.product.id, l.qty + 1)
-                        inputRef.current?.focus()
-                      }}
-                      aria-label="Increase"
-                    >
-                      +
-                    </button>
+                    {l.product.trackSerial ? (
+                      <span className="qty">{l.qty}</span>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => {
+                            setQty(l.product.id, l.qty - 1)
+                            inputRef.current?.focus()
+                          }}
+                          aria-label="Decrease"
+                        >
+                          −
+                        </button>
+                        <span className="qty">{l.qty}</span>
+                        <button
+                          onClick={() => {
+                            setQty(l.product.id, l.qty + 1)
+                            inputRef.current?.focus()
+                          }}
+                          aria-label="Increase"
+                        >
+                          +
+                        </button>
+                      </>
+                    )}
                   </td>
                   <td className="num">{m(l.product.priceMinor * l.qty)}</td>
                   <td>

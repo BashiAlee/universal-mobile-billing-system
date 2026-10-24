@@ -48,6 +48,12 @@ const api = {
     list: (search?: string) => call('purchases:list', search),
     suppliers: () => call('purchases:suppliers')
   },
+  serials: {
+    list: (filter?: unknown) => call('serials:list', filter),
+    get: (serial: string) => call('serials:get', serial),
+    add: (input: unknown) => call('serials:add', input),
+    remove: (id: number) => call('serials:remove', id)
+  },
   parties: {
     list: (search?: string) => call('parties:list', search),
     save: (input: unknown) => call('parties:save', input),

@@ -1,6 +1,7 @@
 import type { Db } from '../db/database'
 import type { Dashboard, ReportRange } from '../../shared/types'
 import { getReport } from './reports'
+import { listParties } from './parties'
 
 const ymd = (d: Date): string =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -47,8 +48,15 @@ export function getDashboard(db: Db, range: ReportRange): Dashboard {
   const hi = addDays(end, 1).toISOString()
   const purchaseByDay = byDay(
     db,
-    `SELECT strftime('%Y-%m-%d', created_at, 'localtime') AS d, SUM(total_minor) AS v
-     FROM purchases WHERE created_at >= ? AND created_at < ? GROUP BY d`,
+    `SELECT d, SUM(v) AS v FROM (
+       SELECT strftime('%Y-%m-%d', created_at, 'localtime') AS d, paid_minor AS v
+       FROM purchases WHERE created_at >= ? AND created_at < ?
+       UNION ALL
+       SELECT strftime('%Y-%m-%d', created_at, 'localtime') AS d, amount_minor AS v
+       FROM party_payments WHERE created_at >= ? AND created_at < ?
+     ) GROUP BY d`,
+    lo,
+    hi,
     lo,
     hi
   )
@@ -95,6 +103,22 @@ export function getDashboard(db: Db, range: ReportRange): Dashboard {
     ),
     sellInLossCount: count(
       'SELECT COUNT(*) AS n FROM products WHERE active = 1 AND cost_minor > 0 AND price_minor < cost_minor'
-    )
+    ),
+    owed: owedToParties(db)
   }
+}
+
+/** What is still to be paid to each party, biggest first. Independent of the dashboard dates. */
+function owedToParties(db: Db): Dashboard['owed'] {
+  const parties = listParties(db)
+    .filter((p) => p.balanceMinor > 0)
+    .sort((a, b) => b.balanceMinor - a.balanceMinor)
+    .map((p) => ({
+      id: p.id,
+      name: p.name,
+      purchasedMinor: p.purchasedMinor,
+      paidMinor: p.paidMinor,
+      balanceMinor: p.balanceMinor
+    }))
+  return { totalMinor: parties.reduce((s, p) => s + p.balanceMinor, 0), parties }
 }

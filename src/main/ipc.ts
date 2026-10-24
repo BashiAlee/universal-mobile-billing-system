@@ -6,6 +6,7 @@ import * as products from './services/products'
 import * as bills from './services/bills'
 import * as purchases from './services/purchases'
 import * as parties from './services/parties'
+import * as serials from './services/serials'
 import * as daybook from './services/daybook'
 import * as dashboard from './services/dashboard'
 import * as reports from './services/reports'
@@ -86,6 +87,15 @@ export function registerIpc(db: Db): void {
   )
   handle('purchases:list', (search?: string) => purchases.listPurchases(db, search))
   handle('purchases:suppliers', () => purchases.listSuppliers(db))
+
+  handle('serials:list', (filter?: Parameters<typeof serials.listUnits>[1]) =>
+    serials.listUnits(db, filter)
+  )
+  handle('serials:add', (input: Parameters<typeof serials.addUnits>[1]) =>
+    serials.addUnits(db, input)
+  )
+  handle('serials:remove', (id: number) => serials.removeUnit(db, id))
+  handle('serials:get', (serial: string) => serials.getUnit(db, serial))
 
   handle('parties:list', (search?: string) => parties.listParties(db, search))
   handle('parties:save', (input: Parameters<typeof parties.saveParty>[1]) =>

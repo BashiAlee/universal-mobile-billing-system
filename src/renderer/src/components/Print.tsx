@@ -59,6 +59,12 @@ export function PrintArea({
           <div className="r-item" key={i.id}>
             <span className="r-item-name">
               {i.qty}x {i.name}
+              {i.serial && (
+                <span className="r-imei">
+                  IMEI: {i.serial}
+                  {i.serial2 ? ` / ${i.serial2}` : ''}
+                </span>
+              )}
             </span>
             <span className="r-item-price">{m(i.lineTotalMinor)}</span>
           </div>

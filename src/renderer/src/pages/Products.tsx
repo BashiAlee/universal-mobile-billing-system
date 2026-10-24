@@ -5,6 +5,7 @@ import { formatMoney, minorToInput, parseMoney } from '../lib/money'
 import { LabelPreview } from '../components/LabelView'
 import { standardDesign } from '../lib/labelDesign'
 import type { PrintJob } from '../components/Print'
+import { ImeiModal } from '../components/ImeiModal'
 
 interface Form {
   id?: number
@@ -14,8 +15,43 @@ interface Form {
   cost: string
   stock: string
   low: string
+  category: string
+  brand: string
+  model: string
+  storage: string
+  ram: string
+  color: string
+  compatibleWith: string
+  trackSerial: boolean
 }
-const EMPTY: Form = { name: '', code: '', price: '', cost: '', stock: '0', low: '0' }
+const EMPTY: Form = {
+  name: '',
+  code: '',
+  price: '',
+  cost: '',
+  stock: '0',
+  low: '0',
+  category: '',
+  brand: '',
+  model: '',
+  storage: '',
+  ram: '',
+  color: '',
+  compatibleWith: '',
+  trackSerial: false
+}
+const CATEGORIES = ['Phone', 'Cover', 'Charger', 'Earphones', 'Cable', 'Screen guard', 'Other']
+
+/** Small grey line under a product name: category, memory, color, what a cover fits. */
+const detailLine = (p: Product): string =>
+  [
+    p.category,
+    [p.ram, p.storage].filter(Boolean).join('/'),
+    p.color,
+    p.compatibleWith && `fits ${p.compatibleWith}`
+  ]
+    .filter(Boolean)
+    .join(' · ')
 
 export default function ProductsPage({
   onPrint
@@ -38,6 +74,7 @@ export default function ProductsPage({
   const [askErr, setAskErr] = useState('')
   const [designs, setDesigns] = useState<LabelDesign[]>([])
   const [designId, setDesignId] = useState(0)
+  const [imei, setImei] = useState<{ productId?: number; title: string } | null>(null)
 
   const load = useCallback(async () => {
     const r = await window.api.products.list(search)
@@ -54,13 +91,23 @@ export default function ProductsPage({
     const cost = form.cost ? parseMoney(form.cost) : 0
     const stock = Number(form.stock)
     const low = Number(form.low)
-    if (!form.name.trim()) return setErr('Name is required')
+    const hasDetails = [form.brand, form.model].some((v) => v.trim())
+    if (!form.name.trim() && !hasDetails)
+      return setErr('Enter a name, or at least the brand and model')
     if (price === null) return setErr('Enter a valid price, e.g. 120 or 120.50')
     if (cost === null) return setErr('Enter a valid cost price')
     if (!Number.isInteger(stock) || stock < 0 || !Number.isInteger(low) || low < 0)
       return setErr('Stock and low-stock level must be whole numbers')
     const base = {
       name: form.name,
+      category: form.category,
+      brand: form.brand,
+      model: form.model,
+      storage: form.storage,
+      ram: form.ram,
+      color: form.color,
+      compatibleWith: form.compatibleWith,
+      trackSerial: form.trackSerial,
       code: form.code || undefined,
       priceMinor: price,
       costMinor: cost,
@@ -68,7 +115,7 @@ export default function ProductsPage({
     }
     const r = form.id
       ? await window.api.products.update(form.id, base)
-      : await window.api.products.create({ ...base, stockQty: stock })
+      : await window.api.products.create({ ...base, stockQty: form.trackSerial ? 0 : stock })
     if (!r.ok)
       return setErr(
         r.error.includes('UNIQUE') ? 'That code is already used by another product' : r.error
@@ -76,6 +123,9 @@ export default function ProductsPage({
     setForm(null)
     setErr('')
     void load()
+    // A new phone has no stock yet: go straight to adding its IMEIs.
+    if (!form.id && form.trackSerial)
+      setImei({ productId: r.data.id, title: `Add IMEIs: ${r.data.name}` })
   }
 
   function restock(p: Product): void {
@@ -157,6 +207,7 @@ export default function ProductsPage({
         >
           + Add product
         </button>
+        <button onClick={() => setImei({ title: 'Find a phone by IMEI' })}>IMEI lookup</button>
         <button
           disabled={!selected.size}
           onClick={() => printLabels(items.filter((p) => selected.has(p.id)))}
@@ -187,7 +238,10 @@ export default function ProductsPage({
                   aria-label={`Select ${p.name}`}
                 />
               </td>
-              <td>{p.name}</td>
+              <td>
+                {p.name}
+                {detailLine(p) && <div className="muted">{detailLine(p)}</div>}
+              </td>
               <td>
                 <code>{p.code}</code>
               </td>
@@ -197,7 +251,13 @@ export default function ProductsPage({
                 {p.stockQty <= p.lowStockThreshold && <span className="badge"> low</span>}
               </td>
               <td className="actions">
-                <button onClick={() => restock(p)}>Stock</button>
+                {p.trackSerial ? (
+                  <button onClick={() => setImei({ productId: p.id, title: `IMEIs: ${p.name}` })}>
+                    IMEIs
+                  </button>
+                ) : (
+                  <button onClick={() => restock(p)}>Stock</button>
+                )}
                 <button
                   onClick={() => {
                     loadDesigns()
@@ -215,7 +275,15 @@ export default function ProductsPage({
                       price: minorToInput(p.priceMinor),
                       cost: minorToInput(p.costMinor),
                       stock: String(p.stockQty),
-                      low: String(p.lowStockThreshold)
+                      low: String(p.lowStockThreshold),
+                      category: p.category,
+                      brand: p.brand,
+                      model: p.model,
+                      storage: p.storage,
+                      ram: p.ram,
+                      color: p.color,
+                      compatibleWith: p.compatibleWith,
+                      trackSerial: p.trackSerial
                     })
                     setErr('')
                   }}
@@ -243,13 +311,87 @@ export default function ProductsPage({
           <div className="modal-card form">
             <h2>{form.id ? 'Edit product' : 'Add product'}</h2>
             <label>
+              Category
+              <input
+                list="categories"
+                value={form.category}
+                onChange={(e) => setForm({ ...form, category: e.target.value })}
+                placeholder="e.g. Phone, Cover"
+              />
+              <datalist id="categories">
+                {CATEGORIES.map((c) => (
+                  <option key={c} value={c} />
+                ))}
+              </datalist>
+            </label>
+            <label>
               Name
               <input
                 autoFocus
+                placeholder="Or leave blank: built from brand, model, memory, color"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
               />
             </label>
+            <div className="prop-grid">
+              <label>
+                Brand
+                <input
+                  value={form.brand}
+                  onChange={(e) => setForm({ ...form, brand: e.target.value })}
+                />
+              </label>
+              <label>
+                Model
+                <input
+                  value={form.model}
+                  onChange={(e) => setForm({ ...form, model: e.target.value })}
+                />
+              </label>
+              <label>
+                RAM (GB)
+                <input
+                  value={form.ram}
+                  onChange={(e) => setForm({ ...form, ram: e.target.value })}
+                />
+              </label>
+              <label>
+                Storage (GB)
+                <input
+                  value={form.storage}
+                  onChange={(e) => setForm({ ...form, storage: e.target.value })}
+                />
+              </label>
+              <label>
+                Color
+                <input
+                  value={form.color}
+                  onChange={(e) => setForm({ ...form, color: e.target.value })}
+                />
+              </label>
+              <label>
+                Compatible with (for covers)
+                <input
+                  value={form.compatibleWith}
+                  onChange={(e) => setForm({ ...form, compatibleWith: e.target.value })}
+                />
+              </label>
+            </div>
+            <label className="inline">
+              <input
+                type="checkbox"
+                checked={form.trackSerial}
+                disabled={!!form.id && Number(form.stock) > 0}
+                onChange={(e) => setForm({ ...form, trackSerial: e.target.checked })}
+              />
+              Track IMEI (every unit is recorded by its IMEI, for phones)
+            </label>
+            {!!form.id && Number(form.stock) > 0 && (
+              <p className="muted">IMEI tracking can only be changed while stock is 0.</p>
+            )}
+            {form.trackSerial && !form.id && (
+              <p className="muted">After you save, you can add the IMEIs of the phones you have.</p>
+            )}
             <label>
               Code (leave blank to auto-generate)
               <input
@@ -273,7 +415,7 @@ export default function ProductsPage({
                 onChange={(e) => setForm({ ...form, cost: e.target.value })}
               />
             </label>
-            {!form.id && (
+            {!form.id && !form.trackSerial && (
               <label>
                 Opening stock
                 <input
@@ -356,6 +498,15 @@ export default function ProductsPage({
             </div>
           </form>
         </div>
+      )}
+
+      {imei && (
+        <ImeiModal
+          productId={imei.productId}
+          title={imei.title}
+          onClose={() => setImei(null)}
+          onChanged={() => void load()}
+        />
       )}
 
       {qrFor && settings && (

@@ -16,6 +16,7 @@ import {
   MAX_PRICE_MINOR
 } from './products'
 import { findOrCreateParty, getParty } from './parties'
+import { insertUnits, normalizeSerials, normalizeSerials2 } from './serials'
 
 /** Resolves the party a purchase belongs to: an existing id, or a name that is found or created. */
 function resolveParty(
@@ -51,7 +52,15 @@ export function createPurchase(db: Db, input: PurchaseInput): Purchase {
     throw new Error('Add at least one item to the purchase')
 
   // Merge repeated lines for the same existing product; each new product is its own line.
-  type Line = { productId?: number; newProduct?: NewProductInput; qty: number; total: number }
+  type Line = {
+    productId?: number
+    newProduct?: NewProductInput
+    qty: number
+    total: number
+    serials?: string[]
+    serials2?: (string | null)[]
+    condition: 'new' | 'used'
+  }
   const merged = new Map<number | object, Line>()
   for (const l of input.items) {
     if (!l || (l.productId === undefined) === (l.newProduct === undefined))
@@ -65,15 +74,40 @@ export function createPurchase(db: Db, input: PurchaseInput): Purchase {
     if (!Number.isInteger(l.totalCostMinor) || l.totalCostMinor < 0)
       throw new Error('Cost must be a valid amount (0 or more)')
     if (l.totalCostMinor > MAX_PRICE_MINOR * 1000) throw new Error('Cost is too large')
-    if (l.newProduct) {
-      merged.set({}, { newProduct: l.newProduct, qty: l.qty, total: l.totalCostMinor })
+    const condition = l.condition === 'used' ? 'used' : 'new'
+    const serials = l.serials === undefined ? undefined : normalizeSerials(l.serials)
+    if (serials && serials.length !== l.qty)
+      throw new Error(
+        `Quantity (${l.qty}) must match the number of IMEIs entered (${serials.length})`
+      )
+    // Tracked lines keep their own condition and IMEIs, so they are never merged.
+    const serials2 = serials ? normalizeSerials2(l.serials2, serials.length) : undefined
+    if (l.newProduct || serials) {
+      merged.set(
+        {},
+        {
+          productId: l.productId,
+          newProduct: l.newProduct,
+          qty: l.qty,
+          total: l.totalCostMinor,
+          serials,
+          serials2,
+          condition
+        }
+      )
       continue
     }
-    const cur = merged.get(l.productId as number) ?? { productId: l.productId, qty: 0, total: 0 }
+    const cur = merged.get(l.productId as number) ?? {
+      productId: l.productId,
+      qty: 0,
+      total: 0,
+      condition
+    }
     merged.set(l.productId as number, {
       productId: l.productId,
       qty: cur.qty + l.qty,
-      total: cur.total + l.totalCostMinor
+      total: cur.total + l.totalCostMinor,
+      condition
     })
   }
   const total = [...merged.values()].reduce((a, l) => a + l.total, 0)
@@ -98,13 +132,32 @@ export function createPurchase(db: Db, input: PurchaseInput): Purchase {
     const purchaseNo = `PUR-${String(id).padStart(6, '0')}`
     let grand = 0
 
-    for (const { productId: existingId, newProduct, qty, total } of merged.values()) {
+    const allSerials = [...merged.values()].flatMap((l) => [
+      ...(l.serials ?? []),
+      ...(l.serials2 ?? []).filter((x): x is string => !!x)
+    ])
+    const repeated = allSerials.find((x, i) => allSerials.indexOf(x) !== i)
+    if (repeated) throw new Error(`IMEI ${repeated} is entered more than once`)
+    for (const {
+      productId: existingId,
+      newProduct,
+      qty,
+      total,
+      serials,
+      serials2,
+      condition
+    } of merged.values()) {
       // A product typed in on the purchase is created here, inside the same transaction as the stock.
       const p = newProduct
         ? insertProduct(db, { ...newProduct, stockQty: 0 })
         : getProduct(db, existingId as number)
       if (!p || !p.active) throw new Error('A product on this purchase no longer exists')
       const productId = p.id
+      if (p.trackSerial && !serials) throw new Error(`Enter the IMEI of every unit of ${p.name}`)
+      if (!p.trackSerial && serials)
+        throw new Error(
+          `${p.name} is not tracked by IMEI: turn on "Track IMEI" on the product first`
+        )
       const unit = Math.round(total / qty)
       db.prepare(
         `INSERT INTO purchase_items (purchase_id, product_id, code, name, qty, unit_cost_minor, line_total_minor)
@@ -114,6 +167,8 @@ export function createPurchase(db: Db, input: PurchaseInput): Purchase {
         'UPDATE products SET stock_qty = stock_qty + ?, cost_minor = ?, updated_at = ? WHERE id = ?'
       ).run(qty, unit, createdAt, productId)
       recordMovement(db, productId, qty, 'purchase', purchaseNo)
+      if (serials)
+        insertUnits(db, productId, serials, serials2 ?? [], condition, unit, id, createdAt)
       grand += total
     }
     db.prepare('UPDATE purchases SET purchase_no = ?, total_minor = ? WHERE id = ?').run(

@@ -307,7 +307,7 @@ export default function DashboardPage({
               color="#1c7c3a"
             />
             <Kpi
-              label="PURCHASE"
+              label="PAID TO SUPPLIERS"
               value={m(report.supplierSpendMinor)}
               now={report.supplierSpendMinor}
               before={data.previous.purchasesMinor}
@@ -333,7 +333,7 @@ export default function DashboardPage({
                 items={[
                   { label: 'Money in', value: data.receivedMinor, color: '#1c7c3a' },
                   { label: 'Expenses', value: data.expensesMinor, color: '#c4302b' },
-                  { label: 'Purchases', value: report.supplierSpendMinor, color: '#e08a00' }
+                  { label: 'Paid to suppliers', value: report.supplierSpendMinor, color: '#e08a00' }
                 ]}
               />
             </div>
@@ -458,6 +458,44 @@ export default function DashboardPage({
                 <p className="muted">No sales in this period.</p>
               )}
             </div>
+          </div>
+
+          <div className="card" role="region" aria-label="Money owed to parties">
+            <h2>Money owed to parties</h2>
+            {data.owed.parties.length ? (
+              <>
+                <table className="grid">
+                  <thead>
+                    <tr>
+                      <th>Party</th>
+                      <th className="num">Total bought</th>
+                      <th className="num">Paid</th>
+                      <th className="num">Remaining</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.owed.parties.map((p) => (
+                      <tr key={p.id}>
+                        <td>{p.name}</td>
+                        <td className="num">{m(p.purchasedMinor)}</td>
+                        <td className="num">{m(p.paidMinor)}</td>
+                        <td className="num err">{m(p.balanceMinor)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div className="row total" style={{ marginTop: 8 }}>
+                  <span>Total still to pay</span>
+                  <span>{m(data.owed.totalMinor)}</span>
+                </div>
+              </>
+            ) : (
+              <p className="muted">You don’t owe any party anything right now.</p>
+            )}
+            <p className="muted">
+              This is separate from profit and from the figures above. It is as of today, whatever
+              dates are chosen.
+            </p>
           </div>
         </>
       )}

@@ -9,6 +9,9 @@ import type {
   Purchase,
   PurchaseInput,
   SupplierNoteInput,
+  SerialAddInput,
+  SerialFilter,
+  SerialUnit,
   Party,
   PartyInput,
   PartyLedger,
@@ -70,6 +73,12 @@ interface TypedApi {
     note: (input: SupplierNoteInput) => Promise<Result<Purchase>>
     list: (search?: string) => Promise<Result<Purchase[]>>
     suppliers: () => Promise<Result<string[]>>
+  }
+  serials: {
+    list: (filter?: SerialFilter) => Promise<Result<SerialUnit[]>>
+    get: (serial: string) => Promise<Result<SerialUnit | null>>
+    add: (input: SerialAddInput) => Promise<Result<Product>>
+    remove: (id: number) => Promise<Result<void>>
   }
   parties: {
     list: (search?: string) => Promise<Result<Party[]>>

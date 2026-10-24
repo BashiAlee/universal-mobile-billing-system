@@ -92,9 +92,22 @@ export function getDayBook(db: Db, day: string): DayBook {
   ).map((r) => ({ ...r }))
   const expensesMinor = expenses.reduce((s, e) => s + e.amountMinor, 0)
 
-  const supplier = db
-    .prepare(`SELECT COALESCE(SUM(total_minor), 0) AS s FROM purchases WHERE ${LOCAL_DAY} = ?`)
-    .get(day) as unknown as { s: number }
+  // Money actually paid to suppliers that day (part-paid purchases count only the paid part, plus later payments).
+  const supplier = {
+    s:
+      (
+        db
+          .prepare(`SELECT COALESCE(SUM(paid_minor), 0) AS s FROM purchases WHERE ${LOCAL_DAY} = ?`)
+          .get(day) as unknown as { s: number }
+      ).s +
+      (
+        db
+          .prepare(
+            `SELECT COALESCE(SUM(amount_minor), 0) AS s FROM party_payments WHERE ${LOCAL_DAY} = ?`
+          )
+          .get(day) as unknown as { s: number }
+      ).s
+  }
 
   const row = db
     .prepare('SELECT opening_minor, notes FROM day_book WHERE day = ?')

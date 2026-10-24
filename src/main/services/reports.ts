@@ -72,11 +72,24 @@ export function getReport(db: Db, range: ReportRange): Report {
       .all(lo, hi) as unknown as { method: string; bills: number; total: number }[]
   ).map((r) => ({ method: r.method, bills: r.bills, totalMinor: r.total }))
 
-  const spend = db
-    .prepare(
-      'SELECT COALESCE(SUM(total_minor), 0) AS s FROM purchases WHERE created_at >= ? AND created_at < ?'
-    )
-    .get(lo, hi) as unknown as { s: number }
+  // Only money actually paid out counts; what is still owed to a party is not spending yet.
+  const spend = {
+    s:
+      (
+        db
+          .prepare(
+            'SELECT COALESCE(SUM(paid_minor), 0) AS s FROM purchases WHERE created_at >= ? AND created_at < ?'
+          )
+          .get(lo, hi) as unknown as { s: number }
+      ).s +
+      (
+        db
+          .prepare(
+            'SELECT COALESCE(SUM(amount_minor), 0) AS s FROM party_payments WHERE created_at >= ? AND created_at < ?'
+          )
+          .get(lo, hi) as unknown as { s: number }
+      ).s
+  }
 
   const stock = db
     .prepare(

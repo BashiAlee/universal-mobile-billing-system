@@ -2,6 +2,34 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com). Versions follow SemVer.
 
+## [0.9.0] - 2026-10-24: Add phones directly; owed money kept out of spending
+
+### Added
+- **Add phones without a purchase**: saving a new IMEI-tracked product opens its IMEI window; the **IMEIs** button on a phone has an "Add phones you already have" form (IMEI, optional second IMEI for dual SIM, condition, optional cost). A phone entered by mistake can be deleted while in stock (stock goes down; sold phones cannot be deleted). IPC `serials:add/remove`.
+- **Dashboard: "Money owed to parties"** at the end: each party with a balance, total bought, paid and remaining, and the total still to pay. It is as of today, not limited to the chosen dates, and is not part of profit.
+
+### Changed
+- **Day book, Reports and Dashboard now count only money actually paid to suppliers** (the paid part of a purchase plus later payments, on the day each was made). The unpaid balance is no longer shown as spending anywhere; it appears only on the Parties page and the Dashboard owed section. Labels now say "Paid to suppliers". Profit never included purchases and still does not.
+
+## [0.8.1] - dual SIM, see 0.8.0 notes below
+## [0.8.0] - 2026-10-24: Product details and IMEI tracking
+
+### Added
+- **Product details**: category, brand, model, RAM, storage, color and "compatible with" (for covers). Leave the name blank and it is built ("Samsung A15 6/128 Black"). The list shows the details under the name. Search now matches every word anywhere in the name, code, details or an IMEI ("a15 128").
+- **Track IMEI** (per product, for phones): every unit is recorded by IMEI; stock is the number of units in stock. A purchase asks for the IMEI of each unit (scan/type + Enter) and a Used/New condition; each unit keeps its own cost. A new product typed on a purchase can be marked as tracked.
+- **Selling**: scan a phone's IMEI at the till to put that exact phone on the bill, or scan/search the product and pick the IMEI (a single unit left is picked automatically). A tracked product is billed one line per unit, each line carries its IMEI and the cost of that unit (profit uses it). The IMEI is printed on the receipt and shown in bill history; bills can be searched by IMEI.
+- **IMEI lookup** (Products page) and an **IMEIs** button per phone: status, supplier and purchase it came from, bill and customer it was sold to.
+- Schema v8: product detail columns, `track_serial`, table `serial_units`. IPC `serials:list/get`. `services/serials.ts`.
+- Rules: IMEIs are unique and stored upper-case; a sold or in-stock IMEI cannot be bought in again; tracked products cannot start with stock or have stock adjusted by hand; tracking can only be switched while stock is 0.
+
+- **Dual-SIM phones**: a phone can have a second IMEI (tick "Dual SIM" on the purchase line). It is still one unit of stock; scanning either IMEI finds the same phone, both are unique, shown in lookup and on the receipt ("IMEI: A / B"), and the same phone cannot be on one bill twice via its two numbers. Schema v9: `serial_units.serial2`.
+- Fixed: checkboxes inside forms were drawn centred above their text.
+
+### Known limits
+- A phone sold and later bought back from a customer with the same IMEI is refused (the IMEI already exists). Trade-in of a previously sold unit is not built.
+- Phone price is the product price; no per-unit selling price for used phones yet. The New-product shortcut on a purchase only asks for name, price and IMEI tracking; edit the details afterwards in Products.
+- IMEIs are checked for length/characters only, not the IMEI check digit.
+
 ## [0.7.0] - 2026-10-24: Parties (suppliers) and balances
 
 ### Added

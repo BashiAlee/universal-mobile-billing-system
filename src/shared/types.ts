@@ -11,10 +11,33 @@ export interface Product {
   active: boolean
   createdAt: string
   updatedAt: string
+  /** Optional details. Phones: brand, model, storage, ram, color. Covers: compatibleWith. */
+  category: string
+  brand: string
+  model: string
+  storage: string
+  ram: string
+  color: string
+  compatibleWith: string
+  /** True for phones: every unit is recorded by IMEI, and stock is the number of units in stock. */
+  trackSerial: boolean
 }
 
-export interface ProductInput {
+/** The optional detail fields of a product. */
+export interface ProductDetails {
+  category?: string
+  brand?: string
+  model?: string
+  storage?: string
+  ram?: string
+  color?: string
+  compatibleWith?: string
+  trackSerial?: boolean
+}
+
+export interface ProductInput extends ProductDetails {
   code?: string
+  /** May be empty when brand/model/etc. are given: the name is then built from them. */
   name: string
   priceMinor: number
   costMinor?: number
@@ -25,6 +48,8 @@ export interface ProductInput {
 export interface BillLineInput {
   productId: number
   qty: number
+  /** Required for IMEI-tracked products: the IMEI of each unit sold (one per qty). */
+  serials?: string[]
 }
 
 export interface BillInput {
@@ -44,6 +69,10 @@ export interface BillItem {
   unitPriceMinor: number
   qty: number
   lineTotalMinor: number
+  /** IMEI / serial of the unit sold, for tracked products (such lines always have qty 1). */
+  serial: string | null
+  /** Second IMEI of a dual-SIM phone, if it has one. */
+  serial2: string | null
 }
 
 export interface Bill {
@@ -92,7 +121,7 @@ export interface StockMovement {
 }
 
 /** A brand-new product created by the purchase itself (it starts at 0 stock, then the purchase adds the quantity). */
-export interface NewProductInput {
+export interface NewProductInput extends ProductDetails {
   name: string
   /** Selling price. */
   priceMinor: number
@@ -103,6 +132,12 @@ export interface PurchaseLineInput {
   /** An existing product, or leave out and give `newProduct` to create it from this purchase. */
   productId?: number
   newProduct?: NewProductInput
+  /** IMEI-tracked products: one IMEI per unit bought (qty must equal the number given). */
+  serials?: string[]
+  /** Second IMEI of each unit (dual SIM), same order as `serials`; use '' for a phone with only one. */
+  serials2?: string[]
+  /** Condition of these units (default new). */
+  condition?: 'new' | 'used'
   qty: number
   /** Total paid for this whole line (e.g. 200 covers for 10000), not the per-unit price. */
   totalCostMinor: number
@@ -323,6 +358,17 @@ export interface Dashboard {
   lowStockCount: number
   /** Products whose selling price is below their cost price. */
   sellInLossCount: number
+  /** What is still owed to parties right now (not limited to the chosen dates). Only parties with a balance. */
+  owed: { totalMinor: number; parties: OwedParty[] }
+}
+
+export interface OwedParty {
+  id: number
+  name: string
+  purchasedMinor: number
+  paidMinor: number
+  /** Still to pay. */
+  balanceMinor: number
 }
 
 /** Result envelope used by every IPC call so the UI never sees thrown errors. */
@@ -360,3 +406,41 @@ export interface LabelDesign {
 
 /** What the designer sends to save: no id yet for a new design. */
 export type LabelDesignInput = Omit<LabelDesign, 'id' | 'isDefault'> & { id?: number }
+
+export type UnitStatus = 'in_stock' | 'sold'
+
+/** One physical unit (phone) with its IMEI and where it came from / went to. */
+export interface SerialUnit {
+  id: number
+  productId: number
+  productName: string
+  serial: string
+  /** Second IMEI of a dual-SIM phone (the same single unit), or null. */
+  serial2: string | null
+  condition: 'new' | 'used'
+  costMinor: number
+  status: UnitStatus
+  purchaseNo: string | null
+  supplierName: string | null
+  boughtAt: string
+  billNo: string | null
+  soldAt: string | null
+  customerName: string | null
+}
+
+export interface SerialFilter {
+  search?: string
+  productId?: number
+  status?: UnitStatus
+}
+
+export interface SerialAddInput {
+  productId: number
+  units: {
+    serial: string
+    serial2?: string
+    condition?: 'new' | 'used'
+    /** Cost of this phone; defaults to the product's cost price. */
+    costMinor?: number
+  }[]
+}

@@ -279,6 +279,10 @@ label.inline {
   gap: 6px;
   color: var(--muted);
 }
+label.inline,
+.form label.inline {
+  flex-direction: row;
+}
 label.inline input {
   width: auto;
 }
@@ -357,6 +361,10 @@ label.inline input {
   .r-item-price {
     white-space: nowrap;
     flex: none;
+  }
+  .r-imei {
+    display: block;
+    font-size: 0.8em;
   }
   .r-line {
     display: flex;
@@ -489,8 +497,12 @@ label.inline input {
   gap: 8px;
 }
 .kpi-row strong {
-  font-size: 24px;
-  overflow-wrap: anywhere;
+  font-size: 22px;
+  white-space: nowrap; /* a long amount must not break across lines */
+}
+.kpi-row svg {
+  flex: 0 1 80px;
+  min-width: 24px;
 }
 .kpi-trend {
   font-size: 12px;
@@ -617,4 +629,19 @@ label.inline input {
   .designer {
     grid-template-columns: 1fr;
   }
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 1px 4px 1px 10px;
+  background: #fff;
+}
+.chip button {
+  border: none;
+  padding: 0 6px;
+  background: none;
 }
