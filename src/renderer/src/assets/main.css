@@ -649,3 +649,15 @@ label.inline input {
   padding: 0 6px;
   background: none;
 }
+
+/* A status line that stays visible while scrolling long forms. */
+.sticky-msg {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin: 0 0 12px;
+}

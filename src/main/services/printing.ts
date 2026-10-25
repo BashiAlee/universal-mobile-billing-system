@@ -12,6 +12,8 @@ export interface PrintOptions {
   /** Paper size in mm. Labels give both; receipts give neither and use the printer's own paper setting. */
   widthMm?: number
   heightMm?: number
+  /** Turn the page 90 degrees. */
+  landscape?: boolean
 }
 
 export async function listPrinters(contents: WebContents): Promise<PrinterOption[]> {
@@ -43,6 +45,7 @@ export function printSilently(contents: WebContents, opts: PrintOptions): Promis
         silent: true,
         deviceName: opts.deviceName,
         printBackground: true,
+        landscape: opts.landscape === true,
         margins: { marginType: 'none' },
         ...(w && h
           ? { pageSize: { width: Math.round(w * 1000), height: Math.round(h * 1000) } }

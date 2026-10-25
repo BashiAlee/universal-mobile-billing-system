@@ -1,10 +1,15 @@
 import { useEffect, useState } from 'react'
 import { useSettings } from '../lib/useSettings'
 import type { ShopSettings } from '../../../shared/types'
+import type { PrintJob } from '../components/Print'
 
 const MAX_LOGO_BYTES = 1024 * 1024
 
-export default function SettingsPage(): React.JSX.Element {
+export default function SettingsPage({
+  onPrint
+}: {
+  onPrint: (j: PrintJob) => void
+}): React.JSX.Element {
   const { settings, reload } = useSettings()
   const [form, setForm] = useState<ShopSettings | null>(settings)
   const [taxPct, setTaxPct] = useState(settings ? String(settings.taxRateBp / 100) : '0')
@@ -42,7 +47,10 @@ export default function SettingsPage(): React.JSX.Element {
     const r = await window.api.settings.save({ ...form!, taxRateBp: Math.round(pct * 100) })
     if (r.ok) {
       await reload()
-      setMsg({ ok: true, text: 'Saved' })
+      setMsg({
+        ok: true,
+        text: `Saved. Receipt printer: ${r.data.receiptPrinter || 'ask each time'}. Label printer: ${r.data.labelPrinter || 'ask each time'}.`
+      })
     } else setMsg({ ok: false, text: r.error })
   }
 
@@ -53,6 +61,11 @@ export default function SettingsPage(): React.JSX.Element {
         These details appear on receipts, labels and the app header. Set them once for each
         customer.
       </p>
+      {msg && (
+        <p className={`sticky-msg ${msg.ok ? 'ok' : 'err'}`} role="status">
+          {msg.text}
+        </p>
+      )}
       <div className="form">
         <label>
           Shop name
@@ -101,7 +114,7 @@ export default function SettingsPage(): React.JSX.Element {
             value={form.receiptPrinter}
             onChange={(e) => set('receiptPrinter', e.target.value)}
           >
-            <option value="">Ask me each time (Windows print window)</option>
+            <option value="">Ask me each time</option>
             {printerList(form.receiptPrinter).map((p) => (
               <option key={p.name} value={p.name}>
                 {p.displayName}
@@ -113,7 +126,7 @@ export default function SettingsPage(): React.JSX.Element {
         <label>
           Label printer
           <select value={form.labelPrinter} onChange={(e) => set('labelPrinter', e.target.value)}>
-            <option value="">Ask me each time (Windows print window)</option>
+            <option value="">Ask me each time</option>
             {printerList(form.labelPrinter).map((p) => (
               <option key={p.name} value={p.name}>
                 {p.displayName}
@@ -123,11 +136,52 @@ export default function SettingsPage(): React.JSX.Element {
           </select>
         </label>
         <p className="muted" style={{ margin: 0 }}>
-          Choose a printer to print straight to it, without the Windows print window. Leave “Ask me
-          each time” to use the normal print window. Set the paper size in the printer’s own Windows
-          settings too (labels: your label size).
+          Choose a printer to always print straight to it. Leave “Ask me each time” to pick the
+          printer every time you print. Set the paper size in the printer’s own Windows settings too
+          (labels: your label size).
           {printers.length === 0 && ' No printers were found on this computer.'}
         </p>
+        <label>
+          Paper size sent to the label printer
+          <select
+            value={form.labelPaper}
+            onChange={(e) => set('labelPaper', e.target.value as 'label' | 'printer')}
+          >
+            <option value="label">
+              The label’s own size ({form.labelWidthMm} × {form.labelHeightMm} mm)
+            </option>
+            <option value="printer">Use the printer’s own paper setting</option>
+          </select>
+        </label>
+        <label className="inline">
+          <input
+            type="checkbox"
+            checked={form.labelRotate}
+            onChange={(e) => set('labelRotate', e.target.checked)}
+          />
+          Rotate the label 90° when printing
+        </label>
+        <div>
+          <button
+            onClick={() => {
+              // Uses the saved settings, exactly like a real label would.
+              onPrint({
+                kind: 'labels',
+                products: [{ id: 0, code: 'TEST-0001', name: 'Test label', priceMinor: 100000 }],
+                copies: 1
+              })
+              setMsg({
+                ok: true,
+                text: settings?.labelPrinter
+                  ? `Test label sent to ${settings.labelPrinter} (label ${settings.labelWidthMm} × ${settings.labelHeightMm} mm, ${settings.labelPaper === 'label' ? 'size sent to printer' : "printer's own paper size"}${settings.labelRotate ? ', rotated' : ''}). If nothing prints, a message will pop up.`
+                  : 'No label printer is saved, so you are asked which printer to use. To skip that, choose a label printer above and click Save settings.'
+              })
+            }}
+          >
+            Print a test label
+          </button>
+          <span className="muted"> Uses the saved settings (save first).</span>
+        </div>
         <label>
           Code on product labels
           <select
@@ -179,11 +233,6 @@ export default function SettingsPage(): React.JSX.Element {
         <button className="primary" onClick={save}>
           Save settings
         </button>
-        {msg && (
-          <p className={msg.ok ? 'ok' : 'err'} role="status">
-            {msg.text}
-          </p>
-        )}
       </div>
     </div>
   )

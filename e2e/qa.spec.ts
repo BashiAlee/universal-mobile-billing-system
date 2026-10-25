@@ -16,6 +16,7 @@ import { join } from 'node:path'
 type W = {
   __prints: number
   __printed: { labels: number; receipts: number }[]
+  __systemPrint: boolean
   __xss?: number
   api: {
     bills: {
@@ -38,6 +39,7 @@ async function launch(): Promise<void> {
     const w = window as unknown as W
     w.__prints = 0
     w.__printed = []
+    w.__systemPrint = true
     window.print = () => {
       w.__prints++
       w.__printed.push({
@@ -113,6 +115,36 @@ test('D1: "Print labels" asks for copies in-app and prints one label per copy', 
   expect(last.labels).toBe(6) // 2 products x 3 copies
 })
 
+test('Windows, "Ask me each time": an in-app window asks for the printer instead of the Windows print window', async () => {
+  test.skip(process.platform !== 'win32', 'the in-app printer chooser is Windows-only')
+  await page.evaluate(() => ((window as unknown as W).__systemPrint = false))
+  try {
+    await page.getByRole('button', { name: 'Products & stock' }).click()
+    await page
+      .getByRole('row', { name: /Notebook/ })
+      .getByRole('button', { name: 'Label', exact: true })
+      .click()
+    await page
+      .getByRole('dialog', { name: 'Product label' })
+      .getByRole('button', { name: 'Print label' })
+      .click()
+    const before = await prints()
+    await page
+      .getByRole('dialog', { name: 'Quantity' })
+      .getByRole('button', { name: 'Print', exact: true })
+      .click()
+    const d = page.getByRole('dialog', { name: 'Choose printer' })
+    await expect(d).toBeVisible()
+    await expect(d.getByLabel('Printer')).not.toHaveValue('')
+    // Cancel closes it without printing (choosing a printer would print for real).
+    await d.getByRole('button', { name: 'Cancel' }).click()
+    await expect(d).toBeHidden()
+    expect(await prints()).toBe(before)
+  } finally {
+    await page.evaluate(() => ((window as unknown as W).__systemPrint = true))
+  }
+})
+
 test('D2: double-clicking "Save & print bill" creates exactly one bill and deducts stock once', async () => {
   await page.getByRole('button', { name: 'New bill' }).click()
   const scan = page.getByLabel('Scan or search product')
@@ -137,7 +169,7 @@ test('XSS: hostile text in names/customer/shop name is shown as text, never exec
   await page.getByLabel('Shop name').fill(evil)
   await page.getByLabel('Address').fill('<script>window.__xss=2</script>')
   await page.getByRole('button', { name: 'Save settings' }).click()
-  await expect(page.getByRole('status')).toHaveText('Saved')
+  await expect(page.getByRole('status')).toContainText('Saved')
   await page.getByRole('button', { name: 'New bill' }).click()
   const scan = page.getByLabel('Scan or search product')
   await scan.fill('XSS-1')
@@ -154,7 +186,7 @@ test('XSS: hostile text in names/customer/shop name is shown as text, never exec
   await page.getByLabel('Shop name').fill('QA Shop')
   await page.getByLabel('Address').fill('')
   await page.getByRole('button', { name: 'Save settings' }).click()
-  await expect(page.getByRole('status')).toHaveText('Saved')
+  await expect(page.getByRole('status')).toContainText('Saved')
 })
 
 test('reprint from bill history prints the stored bill', async () => {

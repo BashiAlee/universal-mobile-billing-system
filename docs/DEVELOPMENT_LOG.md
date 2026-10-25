@@ -87,6 +87,10 @@ User showed their old desktop POS and their Excel day sheet (items with buy/sale
 ## 2026-10-25: Printing straight to the printer (v0.9.5)
 User ran the Windows installer (so it works there) and printing showed the system print window with "Something went wrong" and a greyed-out Print for the Xprinter XP-420B. Could not reproduce (no Windows or printer here), and a web search found no exact match, so rather than guess at a flag I bypass that window: choose the printer in Settings and print silently from the main process. Left the old path as the default so nothing changes for people whose window works. Risk: silent printing with a custom paper size depends on the driver; untested on the real printer.
 
+The user then fixed it on their Windows laptop and handed me the change list (`PRINT_FIX_CHANGES.md`); applied as written (v0.9.6). The cause was the Windows 11 print window using the driver's 80 x 130 mm paper instead of the CSS `@page` size, not my silent-print code. My earlier guesses (rotation, paper-size options) were therefore not the root cause, though they remain available.
+
+User reported (after v0.9.5) the same Windows print window still appears with the XP-420B chosen in Settings (printer is listed, so enumeration works). Cause not yet known: either the setting was not saved or silent printing itself shows the window on that machine. Added a Settings test button and `print.log` rather than guessing; waiting for what the user sees.
+
 ## 2026-10-25: Windows installer for a client (v0.9.3)
 User wants to hand the client only an .exe and a database file. Built the NSIS installer from the Mac. Two mistakes caught: the first installer contained the user's exported database (electron-builder packs every file not excluded, and I had put the export inside the project folder); fixed by excluding data/build files in `electron-builder.yml`, moving the export to a separate `Delivery` folder, rebuilding and listing the asar to confirm. Also, inspecting the asar with `asar extract-file` overwrote the project's `package.json`; restored from git. Lesson: inspect packages in a scratch folder.
 

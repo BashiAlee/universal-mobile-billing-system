@@ -2,12 +2,24 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com). Versions follow SemVer.
 
+## [0.9.6] - 2026-10-25: Windows "Ask me each time" asks for the printer in the app
+
+Applied from the user's `PRINT_FIX_CHANGES.md` (written and tested on their Windows laptop).
+
+### Fixed
+- On Windows the system print window ignores the label size and uses the driver's paper (80 x 130 mm on the XP-420B), so labels printed nothing. With no printer saved, Windows now shows the app's own **Choose printer** window (printers from the PC, last choice remembered per labels/receipts) and prints straight to the picked printer with the exact label size. macOS still opens its normal print dialog.
+- Settings wording updated ("Ask me each time"); e2e tests set `__systemPrint` so no real printer is used, plus a Windows-only test of the chooser (skipped on macOS). Changed files: `Print.tsx`, `Settings.tsx`, `e2e/app.spec.ts`, `e2e/qa.spec.ts`.
+- On the Windows laptop: typecheck, 110 unit tests and 32 e2e tests pass, and a label sent to the Xprinter XP-420B was logged `size=38x25mm ... OK (job accepted)`. Here on the Mac: typecheck/lint clean, 110 unit, 31 e2e pass + 1 skipped.
+
 ## [0.9.5] - 2026-10-25: Print straight to the chosen printer (Windows print window fix)
 
 ### Fixed / Added
 - On the user's Windows laptop the print window ("Universal Billing System - Print") showed "Something went wrong" and a disabled Print button for the Xprinter XP-420B. That window is the Windows system print dialog opened by `window.print()`; it fails with some printer drivers.
 - **Settings > Printer: Receipt printer and Label printer.** Choose a printer and jobs go straight to it with no print window (`webContents.print({ silent: true, deviceName, ... })` in the main process, service `printing.ts`, IPC `print:printers` / `print:run`). Labels are sent with the label design's own paper size (mm); receipts use the printer's own paper setting. Leaving "Ask me each time" keeps the old behaviour (normal print window). If a printer rejects the job an alert says why.
 - Settings keys `receiptPrinter`, `labelPrinter` (empty by default).
+- Settings has **Print a test label**, which uses the saved printer settings and says which route it used. Every silent print attempt is noted in `print.log` in the data folder (printer, size, result) so a problem can be diagnosed from it.
+- After the user's test label printed **blank** on the XP-420B (the app's own render of the same label checked fine as a 38 x 25 mm PDF: shop name, barcode, name, price), two label options were added in Settings: **Paper size sent to the label printer** (the label's own size, or the printer's own paper setting) and **Rotate the label 90°**, so the combination that suits the driver can be found. The log line also records rotation.
+- Settings status message is now a banner pinned to the top of the page (it used to be at the very bottom, easy to miss), says which printers were saved, and the test-label message states the label size and paper mode. Found while checking why the user's saved printer did not seem to be used: with a saved printer the app does print through the silent route and writes `print.log` (verified here with a printer name that does not exist, so nothing printed). Note the test label uses the Standard layout at the size in Settings (default 40 x 30 mm), so the label width/height there must be set to the real label (38 x 25).
 - **Not verified on real hardware**: tested only that the settings, printer list and the refusal of an empty printer name work; actual silent printing to the XP-420B has not been seen working.
 
 ## [0.9.4] - 2026-10-25: Delete a bill; discount in the Day book

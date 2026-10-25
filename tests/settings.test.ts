@@ -84,3 +84,18 @@ describe('printer settings', () => {
     ).toThrow(/invalid/)
   })
 })
+
+describe('label printing options', () => {
+  it('default to the label size and no rotation, can be changed, and reject nonsense', () => {
+    const db = memoryDb()
+    expect(getSettings(db)).toMatchObject({ labelPaper: 'label', labelRotate: false })
+    saveSettings(db, { ...DEFAULT_SETTINGS, labelPaper: 'printer', labelRotate: true })
+    expect(getSettings(db)).toMatchObject({ labelPaper: 'printer', labelRotate: true })
+    expect(() => saveSettings(db, { ...DEFAULT_SETTINGS, labelPaper: 'a4' as 'label' })).toThrow(
+      /invalid/
+    )
+    expect(() =>
+      saveSettings(db, { ...DEFAULT_SETTINGS, labelRotate: 'yes' as unknown as boolean })
+    ).toThrow(/invalid/)
+  })
+})

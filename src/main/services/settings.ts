@@ -15,7 +15,9 @@ export const DEFAULT_SETTINGS: ShopSettings = {
   labelHeightMm: 30,
   labelCodeType: 'barcode',
   receiptPrinter: '',
-  labelPrinter: ''
+  labelPrinter: '',
+  labelPaper: 'label',
+  labelRotate: false
 }
 
 const MAX_LOGO_CHARS = 1_500_000 // ~1.1 MB of image data once base64-decoded
@@ -50,7 +52,9 @@ export function getSettings(db: Db): ShopSettings {
         : DEFAULT_SETTINGS.labelHeightMm,
     labelCodeType: stored.labelCodeType === 'qr' ? 'qr' : 'barcode',
     receiptPrinter: stored.receiptPrinter ?? DEFAULT_SETTINGS.receiptPrinter,
-    labelPrinter: stored.labelPrinter ?? DEFAULT_SETTINGS.labelPrinter
+    labelPrinter: stored.labelPrinter ?? DEFAULT_SETTINGS.labelPrinter,
+    labelPaper: stored.labelPaper === 'printer' ? 'printer' : 'label',
+    labelRotate: stored.labelRotate === 'true'
   }
 }
 
@@ -81,6 +85,9 @@ export function validateSettings(s: ShopSettings): void {
     ['Label printer', s.labelPrinter]
   ] as const)
     if (typeof v !== 'string' || v.length > 200) throw new Error(`${label} name is invalid`)
+  if (s.labelPaper !== 'label' && s.labelPaper !== 'printer')
+    throw new Error('Label paper setting is invalid')
+  if (typeof s.labelRotate !== 'boolean') throw new Error('Label rotate setting is invalid')
   if (s.logoDataUrl) {
     if (s.logoDataUrl.length > MAX_LOGO_CHARS) throw new Error('Logo is too large (max about 1 MB)')
     if (!LOGO_PATTERN.test(s.logoDataUrl))

@@ -110,6 +110,10 @@ export interface ShopSettings {
   /** Windows printer names. Empty = show the normal print window each time. */
   receiptPrinter: string
   labelPrinter: string
+  /** 'label' = send the label's own size to the printer; 'printer' = use the printer's own paper setting. */
+  labelPaper: 'label' | 'printer'
+  /** Turn the label 90 degrees when printing. */
+  labelRotate: boolean
 }
 
 export type StockReason = 'initial' | 'purchase' | 'adjustment' | 'sale' | 'return'

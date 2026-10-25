@@ -75,7 +75,7 @@ function Shell(): React.JSX.Element {
             {tab === 'bills' && <BillsPage onPrint={setJob} />}
             {tab === 'daybook' && <DayBookPage />}
             {tab === 'reports' && <ReportsPage />}
-            {tab === 'settings' && <SettingsPage />}
+            {tab === 'settings' && <SettingsPage onPrint={setJob} />}
           </ErrorBoundary>
         </main>
       </div>

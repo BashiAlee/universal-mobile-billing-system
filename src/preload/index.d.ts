@@ -61,6 +61,7 @@ interface TypedApi {
       deviceName: string
       widthMm?: number
       heightMm?: number
+      landscape?: boolean
     }) => Promise<Result<void>>
   }
   files: {

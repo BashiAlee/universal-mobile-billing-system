@@ -27,6 +27,7 @@ test.beforeAll(async () => {
   // Printing opens a native dialog; replace it with a counter.
   await page.evaluate(() => {
     ;(window as unknown as { __prints: number }).__prints = 0
+    ;(window as unknown as { __systemPrint: boolean }).__systemPrint = true
     window.print = () => {
       ;(window as unknown as { __prints: number }).__prints++
     }
@@ -50,7 +51,7 @@ test('white-label: shop name and logo appear in the header after saving settings
   await page.getByLabel('Receipt paper width').selectOption('58')
   await page.getByLabel('Label width (mm)').fill('50')
   await page.getByRole('button', { name: 'Save settings' }).click()
-  await expect(page.getByRole('status')).toHaveText('Saved')
+  await expect(page.getByRole('status')).toContainText('Saved')
   await expect(page.locator('.sidebar .brand strong')).toHaveText('Ali Traders')
   await expect(page.locator('.sidebar .brand img')).toHaveCount(1)
 })
@@ -266,7 +267,7 @@ test('label code can be switched to QR in settings', async () => {
   await page.getByRole('button', { name: 'Settings' }).click()
   await page.getByLabel('Code on product labels').selectOption('qr')
   await page.getByRole('button', { name: 'Save settings' }).click()
-  await expect(page.getByRole('status')).toHaveText('Saved')
+  await expect(page.getByRole('status')).toContainText('Saved')
   await page.getByRole('button', { name: 'Products & stock' }).click()
   await page.getByRole('button', { name: 'Label', exact: true }).first().click()
   await expect(page.getByRole('img', { name: /^QR code P-/ })).toBeVisible()
@@ -559,7 +560,7 @@ test('discount shows in the day book; a bill can be deleted and its items return
 test('settings: printers can be chosen; printing without a printer name is refused', async () => {
   await page.getByRole('button', { name: 'Settings' }).click()
   await expect(page.getByLabel('Receipt printer')).toHaveValue('')
-  await expect(page.getByLabel('Label printer')).toHaveValue('')
+  await expect(page.getByLabel(/^Label printer/)).toHaveValue('')
   const list = await page.evaluate(() => window.api.print.printers())
   expect(list.ok).toBe(true)
   const r = await page.evaluate(() => window.api.print.run({ deviceName: '' }))

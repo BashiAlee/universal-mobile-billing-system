@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import type { Bill, LabelDesign, ShopSettings } from '../../../shared/types'
 import { formatMoney } from '../lib/money'
 import { BarcodeSVG } from './BarcodeSVG'
@@ -10,13 +10,26 @@ export type PrintJob =
   | { kind: 'labels'; products: LabelProduct[]; copies: number; design?: LabelDesign }
 
 /**
- * With a printer chosen in Settings the job goes straight to it (no Windows print window, which fails on some
- * printer drivers). Without one, the normal print window is shown, as before.
+ * The Windows print window ignores the label size and uses the driver's paper, so label printers print nothing.
+ * On Windows "Ask me each time" therefore asks for the printer in-app and prints straight to it.
  */
-async function printNow(job: PrintJob, settings: ShopSettings): Promise<void> {
-  const deviceName = job.kind === 'labels' ? settings.labelPrinter : settings.receiptPrinter
+const isWindows = navigator.userAgent.includes('Windows')
+
+const savedPrinter = (job: PrintJob, settings: ShopSettings): string =>
+  job.kind === 'labels' ? settings.labelPrinter : settings.receiptPrinter
+
+/** Last printer picked in the in-app chooser, per job kind; a convenience only. */
+const lastPickedKey = (job: PrintJob): string => `ubs.lastPrinter.${job.kind}`
+
+/**
+ * With a printer chosen in Settings (or in the in-app chooser) the job goes straight to it, with no print window.
+ * Without one (macOS only), the normal print window is shown, as before.
+ */
+async function printNow(job: PrintJob, settings: ShopSettings, picked?: string): Promise<void> {
+  const deviceName = picked || savedPrinter(job, settings)
   if (!deviceName) {
-    window.print()
+    // Blocks until the print window closes (tests replace it with a function that waits).
+    await (window.print() as unknown)
     return
   }
   const design =
@@ -31,12 +44,100 @@ async function printNow(job: PrintJob, settings: ShopSettings): Promise<void> {
       : null
   const r = await window.api.print.run({
     deviceName,
-    ...(design ? { widthMm: design.widthMm, heightMm: design.heightMm } : {})
+    // Labels: either the label's own size, or nothing so the printer's own paper setting applies.
+    ...(design && settings.labelPaper === 'label'
+      ? { widthMm: design.widthMm, heightMm: design.heightMm }
+      : {}),
+    ...(design && settings.labelRotate ? { landscape: true } : {})
   })
   if (!r.ok) window.alert(`Could not print: ${r.error}\n\nCheck the printer in Settings.`)
 }
 
-/** Rendered off-screen; shown only by @media print. Calls window.print() once mounted. */
+/** In-app replacement for the Windows print window: pick a printer, then print straight to it. */
+function ChoosePrinter({
+  job,
+  onPrint,
+  onCancel
+}: {
+  job: PrintJob
+  onPrint: (deviceName: string) => void
+  onCancel: () => void
+}): React.JSX.Element {
+  const [printers, setPrinters] = useState<{ name: string; displayName: string }[] | null>(null)
+  const [chosen, setChosen] = useState('')
+  const [err, setErr] = useState('')
+  useEffect(() => {
+    void window.api.print.printers().then((r) => {
+      if (!r.ok) return setErr(r.error)
+      setPrinters(r.data)
+      let last = ''
+      try {
+        last = localStorage.getItem(lastPickedKey(job)) ?? ''
+      } catch {
+        /* storage may be unavailable; just pick the default */
+      }
+      const pick =
+        r.data.find((p) => p.name === last) ?? r.data.find((p) => p.isDefault) ?? r.data[0]
+      setChosen(pick?.name ?? '')
+    })
+  }, [job])
+
+  return (
+    <div className="modal no-print" role="dialog" aria-modal="true" aria-label="Choose printer">
+      <form
+        className="modal-card form"
+        onSubmit={(e) => {
+          e.preventDefault()
+          if (!chosen) return
+          try {
+            localStorage.setItem(lastPickedKey(job), chosen)
+          } catch {
+            /* remembering the choice is optional */
+          }
+          onPrint(chosen)
+        }}
+        onKeyDown={(e) => e.key === 'Escape' && onCancel()}
+      >
+        <h2>{job.kind === 'labels' ? 'Print labels' : 'Print receipt'}</h2>
+        <label>
+          Printer
+          <select
+            autoFocus
+            value={chosen}
+            onChange={(e) => setChosen(e.target.value)}
+            disabled={!printers?.length}
+          >
+            {printers?.map((p) => (
+              <option key={p.name} value={p.name}>
+                {p.displayName}
+              </option>
+            ))}
+          </select>
+        </label>
+        {printers && !printers.length && (
+          <p className="err" role="alert">
+            No printers were found on this computer.
+          </p>
+        )}
+        {err && (
+          <p className="err" role="alert">
+            {err}
+          </p>
+        )}
+        <div className="row-end">
+          <button type="button" onClick={onCancel}>
+            Cancel
+          </button>
+          <button type="submit" className="primary" disabled={!chosen}>
+            Print
+          </button>
+        </div>
+      </form>
+    </div>
+  )
+}
+
+/** Rendered off-screen; shown only by @media print. Prints once mounted (after a printer is picked, if asked). */
 export function PrintArea({
   job,
   settings,
@@ -46,7 +147,11 @@ export function PrintArea({
   settings: ShopSettings
   onDone: () => void
 }): React.JSX.Element {
+  // The e2e tests replace window.print with a counter and set __systemPrint so no real printer is used.
+  const systemPrint = (window as unknown as { __systemPrint?: boolean }).__systemPrint === true
+  const ask = isWindows && !systemPrint && !savedPrinter(job, settings)
   useEffect(() => {
+    if (ask) return
     const t = setTimeout(() => {
       void printNow(job, settings).finally(onDone)
     }, 150)
@@ -54,6 +159,29 @@ export function PrintArea({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [job, onDone])
 
+  const chooser = ask && (
+    <ChoosePrinter
+      job={job}
+      onPrint={(deviceName) => void printNow(job, settings, deviceName).finally(onDone)}
+      onCancel={onDone}
+    />
+  )
+
+  return (
+    <>
+      {chooser}
+      <PrintContent job={job} settings={settings} />
+    </>
+  )
+}
+
+function PrintContent({
+  job,
+  settings
+}: {
+  job: PrintJob
+  settings: ShopSettings
+}): React.JSX.Element {
   const m = (n: number): string => formatMoney(n, settings.currencySymbol)
 
   if (job.kind === 'labels') return <Labels job={job} settings={settings} />

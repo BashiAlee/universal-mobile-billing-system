@@ -1,4 +1,6 @@
-import { ipcMain } from 'electron'
+import { app, ipcMain } from 'electron'
+import { appendFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { saveCsv } from './services/exportFile'
 import type { Db } from './db/database'
 import type { Result } from '../shared/types'
@@ -76,11 +78,25 @@ export function registerIpc(db: Db): void {
     }
   })
   ipcMain.handle('print:run', async (e, opts: printing.PrintOptions): Promise<Result<void>> => {
+    // Every attempt is noted in print.log next to the database, so a printing problem can be diagnosed later.
+    const note = (result: string): void => {
+      try {
+        appendFileSync(
+          join(process.env['UBS_DATA_DIR'] ?? app.getPath('userData'), 'print.log'),
+          `${new Date().toISOString()} printer=${JSON.stringify(opts?.deviceName)} size=${opts?.widthMm ?? '-'}x${opts?.heightMm ?? '-'}mm rotate=${opts?.landscape === true} ${result}\n`
+        )
+      } catch {
+        /* the log is a convenience; never let it break printing */
+      }
+    }
     try {
       await printing.printSilently(e.sender, opts)
+      note('OK (job accepted)')
       return { ok: true, data: undefined }
     } catch (err) {
-      return { ok: false, error: err instanceof Error ? err.message : 'Printing failed' }
+      const msg = err instanceof Error ? err.message : 'Printing failed'
+      note(`FAILED: ${msg}`)
+      return { ok: false, error: msg }
     }
   })
 
