@@ -2,6 +2,33 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com). Versions follow SemVer.
 
+## [0.9.4] - 2026-10-25: Delete a bill; discount in the Day book
+
+### Added
+- **Delete** button on each bill in Bill history (with a confirmation). The bill is removed as if it never happened: items go back into stock, phones sold on it become in-stock again, its stock-history lines are removed, and it disappears from reports, the Day book and the Dashboard. Bill numbers are not reused. Service `deleteBill`, IPC `bills:delete`.
+- Day book shows **Discount given** (and exports it in the CSV). The Sale figure is already after discount, so the row is informational.
+- The Day book sales table now ends with **Discount given on bills** and **Sale after discount** (also in the CSV), so the table adds up to the Sale figure below it. (The first version only showed a note, which was easy to miss.)
+- The Day book sales table shows each bill's own discount in a row under that bill's items ("Discount on this bill"), as well as the total at the end; the CSV has the same rows.
+- Bill details (View) now show subtotal, discount and tax when present.
+
+### Fixed
+- A screen that fails to draw now shows "Something went wrong on this screen" (with the error text) instead of a blank window; switching tab resets it. Found when the Day book went blank in the running dev app: the screen code was updated live but the main process still ran the old code (it only reloads on restart), so the new per-bill discount data was missing. The Day book also tolerates that now. Lesson: restart the dev app after changes to `src/main`.
+- Scanning an unknown code or an already-sold IMEI now selects the text from an effect after it is back in the box (a timer could fire first), so the next scan always replaces it instead of being glued on. This also removed an intermittent e2e failure; that test now also starts from an empty cart.
+
+## [0.9.3] - 2026-10-25: Windows installer built
+
+### Added / Fixed
+- First Windows installer built from the Mac with `npx electron-builder --win --x64` (NSIS, per-user, no admin; `dist/universal-billing-system-1.0.0-setup.exe`, about 107 MB). It is **not code-signed** (Windows SmartScreen shows "Run anyway") and has **not been run on a Windows machine yet**.
+- Fixed: the first build packaged a stray `billing-export.db` found in the project folder into the installer. `electron-builder.yml` now excludes `*.db`, `*.db-*`, `*.tsbuildinfo`, `dist` and `playwright-report`, and the installer was rebuilt and checked (no database or private files inside).
+- Data folder on Windows: `%APPDATA%\universal-billing-system` (package name, no productName). Delivery steps for a client are in `HOW_TO_INSTALL.txt` (kept outside the repo with the installer and database).
+
+## [0.9.2] - 2026-10-25: Stock totals on Products
+
+### Added
+- Products page shows total products, total stock (pieces), and stock value at cost and at selling price. The totals follow the list on screen, so a search shows the totals of what it found.
+- Products table has a **Cost price** column next to the selling price.
+- 117 products imported from the user's `USD MOBILE.xlsx` into their own database (a one-off data load, not a feature of the app).
+
 ## [0.9.1] - 2026-10-24: Supplier money removed from Day book, Dashboard and Reports
 
 ### Changed

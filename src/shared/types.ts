@@ -304,6 +304,8 @@ export interface DayBookLine {
 export interface DayBook {
   day: string
   lines: DayBookLine[]
+  /** The discount given on each bill of the day that had one. */
+  billDiscounts: { billNo: string; discountMinor: number }[]
   bills: number
   /** Sales after bill discounts, before tax. */
   salesMinor: number

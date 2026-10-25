@@ -65,7 +65,8 @@ const api = {
   bills: {
     create: (input: unknown) => call('bills:create', input),
     list: (search?: string) => call('bills:list', search),
-    get: (id: number) => call('bills:get', id)
+    get: (id: number) => call('bills:get', id),
+    delete: (id: number) => call('bills:delete', id)
   }
 }
 

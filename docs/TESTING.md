@@ -92,6 +92,10 @@ Dashboard redesign (v0.5.2): lint clean, typecheck 0 errors, npm test 57 passed 
 
 CSV export (v0.5.3): lint clean, typecheck 0 errors, npm test 61 passed (new tests/csv.test.ts), npm run test:e2e 23 passed (exports a day book and a daily report to a temp folder and reads the files back; the Save-as window is bypassed in tests via UBS_EXPORT_DIR). Not run: the real Save-as window, opening the files in actual Excel. Known: minorToInput (used by input boxes) mishandles negative amounts; not reachable from current inputs, left unchanged.
 
+Delete bill and Day book discount (v0.9.4): lint clean, typecheck 0 errors, npm test 107 passed (new: deleting a bill restores stock, phones, movements and reports; numbers not reused), npm run test:e2e 30 passed, repeated 8 times in a row without a failure (new: discount shows in the Day book; delete a bill and stock returns). An intermittent failure of the unknown-scan test was traced to a timer racing a re-render and fixed. Not checked by eye.
+
+Stock totals on Products (v0.9.2): lint clean, typecheck 0 errors, e2e assertion added. Screenshot with the imported products checked by eye (117 products, 704 pieces).
+
 Supplier money removed from screens (v0.9.1): lint clean, typecheck 0 errors, npm test 106 passed, npm run test:e2e 29 passed. Not checked by eye.
 
 Phones added directly, paid-only supplier spend, owed section (v0.9.0): lint clean, typecheck 0 errors, npm test 106 passed (5 new: reports/day book/dashboard count only paid money and later payments, owed list and totals, settled/advance parties excluded, add phones with 2nd IMEI/cost/condition, refusals and no half-adds, delete in-stock phone but not a sold one), npm run test:e2e 29 passed (new: new tracked phone opens the IMEI window, add single and dual-SIM phones, delete one; Dashboard owed section shows Gadget Hub 2,000, Old Supplier 7,500, total 9,500), npm audit 0 vulnerabilities. Not checked by eye (no screenshot of the Dashboard owed section or the add-phones form).

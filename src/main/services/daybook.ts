@@ -67,6 +67,13 @@ export function getDayBook(db: Db, day: string): DayBook {
       .all(day) as unknown as DayBook['lines']
   ).map((r) => ({ ...r }))
 
+  const billDiscounts = db
+    .prepare(
+      `SELECT bill_no AS billNo, discount_minor AS discountMinor FROM bills
+       WHERE ${LOCAL_DAY} = ? AND discount_minor > 0 ORDER BY created_at, id`
+    )
+    .all(day) as unknown as DayBook['billDiscounts']
+
   const a = db
     .prepare(
       `SELECT COUNT(*) AS bills, COALESCE(SUM(subtotal_minor - discount_minor), 0) AS sales,
@@ -120,6 +127,7 @@ export function getDayBook(db: Db, day: string): DayBook {
   return {
     day,
     lines,
+    billDiscounts: billDiscounts.map((r) => ({ ...r })),
     bills: a.bills,
     salesMinor: a.sales,
     discountMinor: a.discount,

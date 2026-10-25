@@ -245,7 +245,7 @@ test('data and settings persist after closing and reopening the app', async () =
   await launch()
   await expect(page.locator('.sidebar .brand strong')).toHaveText('QA Shop')
   await page.getByRole('button', { name: 'Bill history' }).click()
-  await expect(page.getByRole('cell', { name: 'INV-000001' })).toBeVisible()
+  await expect(page.getByRole('cell', { name: 'INV-000001', exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Products & stock' }).click()
   await expect(page.getByRole('row', { name: /Notebook/ })).toContainText('12')
 })

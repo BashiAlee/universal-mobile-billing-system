@@ -181,6 +181,11 @@ export default function ProductsPage({
     }
   }
 
+  // Totals follow the list on screen, so a search shows the totals of what it found.
+  const totalStock = items.reduce((n, p) => n + p.stockQty, 0)
+  const stockCost = items.reduce((n, p) => n + p.stockQty * p.costMinor, 0)
+  const stockRetail = items.reduce((n, p) => n + p.stockQty * p.priceMinor, 0)
+
   const toggle = (id: number): void => {
     const s = new Set(selected)
     if (s.has(id)) s.delete(id)
@@ -216,95 +221,118 @@ export default function ProductsPage({
         </button>
       </div>
 
-      <table className="grid">
-        <thead>
-          <tr>
-            <th></th>
-            <th>Name</th>
-            <th>Code</th>
-            <th className="num">Price</th>
-            <th className="num">Stock</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((p) => (
-            <tr key={p.id} className={p.stockQty <= p.lowStockThreshold ? 'low' : ''}>
-              <td>
-                <input
-                  type="checkbox"
-                  checked={selected.has(p.id)}
-                  onChange={() => toggle(p.id)}
-                  aria-label={`Select ${p.name}`}
-                />
-              </td>
-              <td>
-                {p.name}
-                {detailLine(p) && <div className="muted">{detailLine(p)}</div>}
-              </td>
-              <td>
-                <code>{p.code}</code>
-              </td>
-              <td className="num">{formatMoney(p.priceMinor, sym)}</td>
-              <td className="num">
-                {p.stockQty}
-                {p.stockQty <= p.lowStockThreshold && <span className="badge"> low</span>}
-              </td>
-              <td className="actions">
-                {p.trackSerial ? (
-                  <button onClick={() => setImei({ productId: p.id, title: `IMEIs: ${p.name}` })}>
-                    IMEIs
-                  </button>
-                ) : (
-                  <button onClick={() => restock(p)}>Stock</button>
-                )}
-                <button
-                  onClick={() => {
-                    loadDesigns()
-                    setQrFor(p)
-                  }}
-                >
-                  Label
-                </button>
-                <button
-                  onClick={() => {
-                    setForm({
-                      id: p.id,
-                      name: p.name,
-                      code: p.code,
-                      price: minorToInput(p.priceMinor),
-                      cost: minorToInput(p.costMinor),
-                      stock: String(p.stockQty),
-                      low: String(p.lowStockThreshold),
-                      category: p.category,
-                      brand: p.brand,
-                      model: p.model,
-                      storage: p.storage,
-                      ram: p.ram,
-                      color: p.color,
-                      compatibleWith: p.compatibleWith,
-                      trackSerial: p.trackSerial
-                    })
-                    setErr('')
-                  }}
-                >
-                  Edit
-                </button>
-                <button className="danger" onClick={() => remove(p)}>
-                  Remove
-                </button>
-              </td>
-            </tr>
-          ))}
-          {!items.length && (
+      <div className="kpis" role="group" aria-label="Stock totals">
+        {[
+          ['PRODUCTS', String(items.length)],
+          ['TOTAL STOCK (PIECES)', totalStock.toLocaleString('en-US')],
+          ['STOCK VALUE (COST)', formatMoney(stockCost, sym)],
+          ['STOCK VALUE (SELLING)', formatMoney(stockRetail, sym)]
+        ].map(([label, value]) => (
+          <div className="kpi" key={label}>
+            <div className="kpi-label">{label}</div>
+            <div className="kpi-row">
+              <strong>{value}</strong>
+            </div>
+          </div>
+        ))}
+      </div>
+      {search.trim() && (
+        <p className="muted">Totals are for the products matching “{search.trim()}”.</p>
+      )}
+
+      <div className="tablewrap">
+        <table className="grid">
+          <thead>
             <tr>
-              <td colSpan={6} className="muted center">
-                No products yet. Click “Add product”.
-              </td>
+              <th></th>
+              <th>Name</th>
+              <th>Code</th>
+              <th className="num">Cost</th>
+              <th className="num">Price</th>
+              <th className="num">Stock</th>
+              <th>Actions</th>
             </tr>
-          )}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {items.map((p) => (
+              <tr key={p.id} className={p.stockQty <= p.lowStockThreshold ? 'low' : ''}>
+                <td>
+                  <input
+                    type="checkbox"
+                    checked={selected.has(p.id)}
+                    onChange={() => toggle(p.id)}
+                    aria-label={`Select ${p.name}`}
+                  />
+                </td>
+                <td>
+                  {p.name}
+                  {detailLine(p) && <div className="muted">{detailLine(p)}</div>}
+                </td>
+                <td>
+                  <code>{p.code}</code>
+                </td>
+                <td className="num">{formatMoney(p.costMinor, sym)}</td>
+                <td className="num">{formatMoney(p.priceMinor, sym)}</td>
+                <td className="num">
+                  {p.stockQty}
+                  {p.stockQty <= p.lowStockThreshold && <span className="badge"> low</span>}
+                </td>
+                <td className="actions">
+                  {p.trackSerial ? (
+                    <button onClick={() => setImei({ productId: p.id, title: `IMEIs: ${p.name}` })}>
+                      IMEIs
+                    </button>
+                  ) : (
+                    <button onClick={() => restock(p)}>Stock</button>
+                  )}
+                  <button
+                    onClick={() => {
+                      loadDesigns()
+                      setQrFor(p)
+                    }}
+                  >
+                    Label
+                  </button>
+                  <button
+                    onClick={() => {
+                      setForm({
+                        id: p.id,
+                        name: p.name,
+                        code: p.code,
+                        price: minorToInput(p.priceMinor),
+                        cost: minorToInput(p.costMinor),
+                        stock: String(p.stockQty),
+                        low: String(p.lowStockThreshold),
+                        category: p.category,
+                        brand: p.brand,
+                        model: p.model,
+                        storage: p.storage,
+                        ram: p.ram,
+                        color: p.color,
+                        compatibleWith: p.compatibleWith,
+                        trackSerial: p.trackSerial
+                      })
+                      setErr('')
+                    }}
+                  >
+                    Edit
+                  </button>
+                  <button className="danger" onClick={() => remove(p)}>
+                    Remove
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {!items.length && (
+              <tr>
+                <td colSpan={7} className="muted center">
+                  No products yet. Click “Add product”.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
 
       {form && (
         <div className="modal" role="dialog" aria-modal="true" aria-label="Product form">

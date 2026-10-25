@@ -23,6 +23,7 @@ Last updated: 2026-10-23 (v0.3.0)
 
 - [x] QA audit and defect fixes (v0.3.1): see QA_REPORT.md.
 - [x] Label designer: drag/edit items on a 38 x 25 mm label, save named designs, pick one when printing (v0.6.0)
+- [x] Delete a bill (items and phones return to stock); discount shown in the Day book (v0.9.4)
 - [x] Add phones directly (no purchase), delete a mistaken in-stock phone; supplier spend counts only money paid; Dashboard 'Money owed to parties' (v0.9.0)
 - [x] Product details (brand, model, RAM, storage, color, cover compatibility) and per-unit IMEI tracking through purchase, sale, receipt and lookup (v0.8.0)
 - [x] Parties (suppliers): balances, payments, ledger, part-payment on purchases, new products created from a purchase (v0.7.0)
@@ -35,7 +36,7 @@ Last updated: 2026-10-23 (v0.3.0)
 ## Pending: must verify before first customer
 
 - [ ] **Run the app on a real Windows PC** and check layout, fonts and window behaviour (only run on macOS so far)
-- [ ] **Build and test the Windows installer** (`npm run build:win`); not yet run. App icon in `build/`/`resources/` is still the Electron template icon
+- [ ] **Run the Windows installer on a real Windows PC** (it is built, see CHANGELOG 0.9.3, but never run there). Not code-signed. App icon in `build/`/`resources/` is still the Electron template icon
 - [ ] **Test with a real USB QR scanner**; only simulated keyboard input tested
 - [ ] **Test real printing on the user's XPrinter**: confirm the model (receipt printer vs label/barcode printer), paper width, label size; check receipt and label layout, margins and QR size on actual output. Consider silent printing (no dialog) once the printer is known
 - [ ] **Print a test label from the Label designer on the real label printer** (38 x 25 mm): check alignment, barcode size/scan, set the printer driver paper size to match. Add a print offset setting if the printer shifts the layout

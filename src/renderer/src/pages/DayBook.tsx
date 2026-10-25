@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { Fragment, useCallback, useEffect, useState } from 'react'
 import type { DayBook } from '../../../shared/types'
 import { useSettings } from '../lib/useSettings'
 import { formatMoney, minorToInput, parseMoney } from '../lib/money'
@@ -97,14 +97,19 @@ export default function DayBookPage(): React.JSX.Element {
       ['Date', book.day],
       [],
       ['No', 'Bill', 'Product', 'Qty', 'Buy', 'Sale'],
-      ...book.lines.map((l, i) => [
-        i + 1,
-        l.billNo,
-        l.name,
-        l.qty,
-        money(l.costMinor),
-        money(l.saleMinor)
-      ]),
+      ...book.lines.flatMap((l, i): Cell[][] => {
+        const row: Cell[] = [i + 1, l.billNo, l.name, l.qty, money(l.costMinor), money(l.saleMinor)]
+        const disc =
+          book.lines[i + 1]?.billNo !== l.billNo
+            ? (book.billDiscounts ?? []).find((d) => d.billNo === l.billNo)
+            : undefined
+        return disc
+          ? [
+              row,
+              ['', disc.billNo, 'Discount on this bill', '', '', `-${money(disc.discountMinor)}`]
+            ]
+          : [row]
+      }),
       [
         'Total',
         '',
@@ -113,6 +118,12 @@ export default function DayBookPage(): React.JSX.Element {
         money(book.costMinor),
         money(book.lines.reduce((s, l) => s + l.saleMinor, 0))
       ],
+      ...(book.discountMinor > 0
+        ? [
+            ['Discount given on bills', '', '', '', '', `-${money(book.discountMinor)}`],
+            ['Sale after discount', '', '', '', '', money(book.salesMinor)]
+          ]
+        : []),
       [],
       ['Shop expense', 'Amount'],
       ...book.expenses.map((e) => [e.title, money(e.amountMinor)]),
@@ -120,6 +131,7 @@ export default function DayBookPage(): React.JSX.Element {
       [],
       ['Opening balance', money(book.openingMinor)],
       ['Sale', money(book.salesMinor)],
+      ['Discount given', money(book.discountMinor)],
       ['Profit', money(book.profitMinor)],
       ['Shop expense', money(book.expensesMinor)],
       ['Profit after expenses', money(book.netProfitMinor)],
@@ -208,18 +220,37 @@ export default function DayBookPage(): React.JSX.Element {
                 </tr>
               </thead>
               <tbody>
-                {book.lines.map((l, i) => (
-                  <tr key={i}>
-                    <td>{i + 1}</td>
-                    <td>
-                      <code>{l.billNo}</code>
-                    </td>
-                    <td>{l.name}</td>
-                    <td className="num">{l.qty}</td>
-                    <td className="num">{m(l.costMinor)}</td>
-                    <td className="num">{m(l.saleMinor)}</td>
-                  </tr>
-                ))}
+                {book.lines.map((l, i) => {
+                  // After the last item of a bill that had a discount, show that bill's discount.
+                  const last = book.lines[i + 1]?.billNo !== l.billNo
+                  const disc = last
+                    ? (book.billDiscounts ?? []).find((d) => d.billNo === l.billNo)
+                    : undefined
+                  return (
+                    <Fragment key={i}>
+                      <tr>
+                        <td>{i + 1}</td>
+                        <td>
+                          <code>{l.billNo}</code>
+                        </td>
+                        <td>{l.name}</td>
+                        <td className="num">{l.qty}</td>
+                        <td className="num">{m(l.costMinor)}</td>
+                        <td className="num">{m(l.saleMinor)}</td>
+                      </tr>
+                      {disc && (
+                        <tr>
+                          <td></td>
+                          <td>
+                            <code>{disc.billNo}</code>
+                          </td>
+                          <td colSpan={3}>Discount on this bill</td>
+                          <td className="num err">-{m(disc.discountMinor)}</td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  )
+                })}
                 {!book.lines.length && (
                   <tr>
                     <td colSpan={6} className="muted center">
@@ -236,14 +267,21 @@ export default function DayBookPage(): React.JSX.Element {
                     </td>
                   </tr>
                 )}
+                {book.lines.length > 0 && book.discountMinor > 0 && (
+                  <>
+                    <tr>
+                      <td colSpan={5}>Discount given on bills</td>
+                      <td className="num err">-{m(book.discountMinor)}</td>
+                    </tr>
+                    <tr>
+                      <td colSpan={5}>{bold('Sale after discount')}</td>
+                      <td className="num">{bold(m(book.salesMinor))}</td>
+                    </tr>
+                  </>
+                )}
               </tbody>
             </table>
           </div>
-          {book.discountMinor > 0 && (
-            <p className="muted">
-              Bill discounts of {m(book.discountMinor)} are taken off the sales figure below.
-            </p>
-          )}
 
           <h2>Shop expenses</h2>
           <table className="grid">
@@ -308,6 +346,10 @@ export default function DayBookPage(): React.JSX.Element {
             <div className="row">
               <span>Sale ({book.bills} bills)</span>
               <span>{m(book.salesMinor)}</span>
+            </div>
+            <div className="row">
+              <span>Discount given (already taken off the sale)</span>
+              <span>{m(book.discountMinor)}</span>
             </div>
             <div className="row">
               <span>Profit</span>

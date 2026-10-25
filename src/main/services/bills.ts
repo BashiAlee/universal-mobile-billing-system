@@ -242,3 +242,28 @@ export function listBills(db: Db, search = '', limit = 200): Bill[] {
     .all(like, like, like, like, limit) as unknown as BillRow[]
   return rows.map((r) => hydrate(db, r))
 }
+
+/**
+ * Removes a bill as if it never happened: the items go back into stock (phones become in-stock again),
+ * and the bill disappears from history, reports, the day book and the dashboard. Bill numbers are not reused.
+ */
+export function deleteBill(db: Db, id: number): void {
+  if (!Number.isInteger(id)) throw new Error('Unknown bill')
+  transaction(db, () => {
+    const bill = getBill(db, id)
+    if (!bill) throw new Error('Bill not found')
+    const now = new Date().toISOString()
+    for (const item of bill.items) {
+      db.prepare(
+        "UPDATE serial_units SET status = 'in_stock', bill_item_id = NULL, sold_at = NULL WHERE bill_item_id = ?"
+      ).run(item.id)
+      if (item.productId !== null)
+        db.prepare(
+          'UPDATE products SET stock_qty = stock_qty + ?, updated_at = ? WHERE id = ?'
+        ).run(item.qty, now, item.productId)
+    }
+    db.prepare("DELETE FROM stock_movements WHERE ref = ? AND reason = 'sale'").run(bill.billNo)
+    db.prepare('DELETE FROM bill_items WHERE bill_id = ?').run(id)
+    db.prepare('DELETE FROM bills WHERE id = ?').run(id)
+  })
+}

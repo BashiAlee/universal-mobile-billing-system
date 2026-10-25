@@ -101,7 +101,7 @@ test('scan a code, build a bill, checkout reduces stock and prints a receipt', a
   await page.getByRole('button', { name: 'Products & stock' }).click()
   await expect(page.getByRole('row', { name: /Green Tea/ })).toContainText('3')
   await page.getByRole('button', { name: 'Bill history' }).click()
-  await expect(page.getByRole('cell', { name: 'INV-000001' })).toBeVisible()
+  await expect(page.getByRole('cell', { name: 'INV-000001', exact: true })).toBeVisible()
 })
 
 test('reports show the sale made above (today, this month) with its profit', async () => {
@@ -161,10 +161,21 @@ test('scanning keeps working after removing an item from the bill', async () => 
 
 test('scanning an unknown code then a real one adds the real one', async () => {
   await page.getByRole('button', { name: 'New bill' }).click()
+  // The previous test may leave an item in the cart; start from an empty one.
+  const clear = page.getByRole('button', { name: 'Clear' })
+  if (await clear.isEnabled()) await clear.click()
   const scan = page.getByLabel('Scan or search product')
   await scan.fill('NOPE-123')
   await scan.press('Enter')
   await expect(page.getByRole('status')).toContainText('No product found')
+  // The unknown code gets selected a moment after the message; wait for that so the next scan replaces it.
+  await expect
+    .poll(() =>
+      scan.evaluate(
+        (el: HTMLInputElement) => el.selectionStart === 0 && el.selectionEnd === el.value.length
+      )
+    )
+    .toBe(true)
   await page.keyboard.type('P-000001')
   await page.keyboard.press('Enter')
   await expect(page.locator('.qty')).toHaveText('1')
@@ -403,6 +414,9 @@ test('phones: details build the name, IMEIs are bought, sold on a bill, and can 
   const row = page.getByRole('row', { name: /Samsung A15 6\/128 Black/ })
   await expect(row).toBeVisible()
   await expect(row).toContainText('Phone')
+  await expect(page.getByRole('group', { name: 'Stock totals' })).toContainText(
+    'TOTAL STOCK (PIECES)'
+  )
 
   // Search matches words anywhere in the details.
   await page.getByLabel('Search products').fill('a15 128')
@@ -502,4 +516,42 @@ test('dashboard ends with the money still owed to parties; unpaid balances are n
   await expect(owed.getByRole('row', { name: /Gadget Hub/ })).toContainText('2,000.00')
   await expect(owed.getByRole('row', { name: /Old Supplier/ })).toContainText('7,500.00')
   await expect(owed).toContainText('9,500.00')
+})
+
+test('discount shows in the day book; a bill can be deleted and its items return to stock', async () => {
+  await page.getByRole('button', { name: 'Products & stock' }).click()
+  const before = await page.getByRole('row', { name: /Phone cover/ }).innerText()
+
+  await page.getByRole('button', { name: 'New bill' }).click()
+  const scan = page.getByLabel('Scan or search product')
+  await scan.fill('Phone cover')
+  await scan.press('Enter')
+  await page.getByLabel('Discount').fill('20')
+  await page.getByRole('button', { name: 'Save & print bill' }).click()
+  await expect(page.getByRole('status')).toContainText('Saved INV-')
+
+  await page.getByRole('button', { name: 'Day book' }).click()
+  await expect(page.getByText('Discount given', { exact: false }).first()).toBeVisible()
+  await expect(page.locator('.row', { hasText: 'Discount given' }).first()).toContainText('20.00')
+  // The sales table itself shows the discount and the sale after it.
+  await expect(page.getByRole('row', { name: /Discount given on bills/ })).toContainText(
+    '-Rs 20.00'
+  )
+  await expect(page.getByRole('row', { name: /Sale after discount/ })).toBeVisible()
+  // Each bill that had a discount shows it right under its items.
+  await expect(page.getByRole('row', { name: /Discount on this bill/ }).last()).toContainText(
+    '-Rs 20.00'
+  )
+
+  await page.getByRole('button', { name: 'Bill history' }).click()
+  const latest = page.getByRole('row').filter({ hasText: 'INV-' }).first()
+  await expect(latest).toBeVisible()
+  const billNo = (await latest.getByRole('cell').first().innerText()).trim()
+  page.once('dialog', (d) => void d.accept())
+  await latest.getByRole('button', { name: `Delete ${billNo}` }).click()
+  await expect(page.getByRole('status')).toContainText(`Deleted ${billNo}`)
+  await expect(page.getByRole('cell', { name: billNo, exact: true })).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'Products & stock' }).click()
+  expect(await page.getByRole('row', { name: /Phone cover/ }).innerText()).toBe(before)
 })

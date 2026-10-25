@@ -364,3 +364,46 @@ describe('adding and deleting phones without a purchase', () => {
     expect(getProduct(db, p.id)?.stockQty).toBe(0)
   })
 })
+
+describe('deleting a bill', () => {
+  it('puts items and phones back in stock and removes the bill from reports; numbers are not reused', async () => {
+    const { deleteBill, getBill, listBills } = await import('../src/main/services/bills')
+    const { getReport } = await import('../src/main/services/reports')
+    const { listMovements } = await import('../src/main/services/products')
+    const db = memoryDb()
+    const cover = createProduct(db, {
+      name: 'Cover',
+      priceMinor: 1000,
+      costMinor: 400,
+      stockQty: 5
+    })
+    const { p } = phone(db)
+    createPurchase(db, {
+      supplierName: 'S',
+      items: [{ productId: p.id, qty: 1, totalCostMinor: 100, serials: [IMEI_A] }]
+    })
+    const bill = createBill(db, {
+      items: [
+        { productId: cover.id, qty: 2 },
+        { productId: p.id, qty: 1, serials: [IMEI_A] }
+      ]
+    })
+    expect(getProduct(db, cover.id)?.stockQty).toBe(3)
+    expect(getUnit(db, IMEI_A)?.status).toBe('sold')
+
+    deleteBill(db, bill.id)
+    expect(getBill(db, bill.id)).toBeNull()
+    expect(getProduct(db, cover.id)?.stockQty).toBe(5)
+    expect(getProduct(db, p.id)?.stockQty).toBe(1)
+    expect(getUnit(db, IMEI_A)).toMatchObject({ status: 'in_stock', billNo: null })
+    expect(listMovements(db, cover.id).some((m) => m.reason === 'sale')).toBe(false)
+    expect(listBills(db)).toHaveLength(0)
+    const d = new Date().toLocaleDateString('en-CA')
+    expect(getReport(db, { from: d, to: d }).netSalesMinor).toBe(0)
+
+    // The phone can be sold again, and the new bill gets a new number.
+    const again = createBill(db, { items: [{ productId: p.id, qty: 1, serials: [IMEI_A] }] })
+    expect(again.billNo).not.toBe(bill.billNo)
+    expect(() => deleteBill(db, 9999)).toThrow(/not found/)
+  })
+})

@@ -92,6 +92,7 @@ interface TypedApi {
     create: (input: BillInput) => Promise<Result<Bill>>
     list: (search?: string) => Promise<Result<Bill[]>>
     get: (id: number) => Promise<Result<Bill | null>>
+    delete: (id: number) => Promise<Result<void>>
   }
 }
 

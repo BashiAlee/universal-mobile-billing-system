@@ -105,3 +105,23 @@ describe('dashboard', () => {
     expect(() => getDashboard(db, { from: today(), to: offset(-3) })).toThrow()
   })
 })
+
+describe('day book per-bill discounts', () => {
+  it('lists the discount of each bill that had one, and none for bills without', async () => {
+    const { getDayBook } = await import('../src/main/services/daybook')
+    const { createBill } = await import('../src/main/services/bills')
+    const { createProduct } = await import('../src/main/services/products')
+    const db = memoryDb()
+    const p = createProduct(db, { name: 'A', priceMinor: 200_000, stockQty: 10 })
+    const b1 = createBill(db, { items: [{ productId: p.id, qty: 1 }], discountMinor: 50_000 })
+    createBill(db, { items: [{ productId: p.id, qty: 1 }] })
+    const b3 = createBill(db, { items: [{ productId: p.id, qty: 2 }], discountMinor: 30_000 })
+    const book = getDayBook(db, today())
+    expect(book.billDiscounts).toEqual([
+      { billNo: b1.billNo, discountMinor: 50_000 },
+      { billNo: b3.billNo, discountMinor: 30_000 }
+    ])
+    expect(book.discountMinor).toBe(80_000)
+    expect(book.salesMinor).toBe(800_000 - 80_000)
+  })
+})

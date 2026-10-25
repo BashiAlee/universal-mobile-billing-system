@@ -165,9 +165,13 @@ main {
 .actions {
   white-space: nowrap; /* not display:flex - that removes the cell from the table and breaks row borders */
 }
+.grid td.actions button {
+  padding: 4px 8px;
+}
 .actions button + button {
   margin-left: 6px;
 }
+.grid td.num,
 .grid td.qtycell,
 .grid td code {
   white-space: nowrap;

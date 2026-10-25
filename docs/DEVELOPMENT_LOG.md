@@ -84,6 +84,9 @@
 ## 2026-10-24: Day book (v0.5.0)
 User showed their old desktop POS and their Excel day sheet (items with buy/sale, shop expense column, totals, profit, remaining balance, notes). Built a Day book tab: `services/daybook.ts`, schema v5 (`expenses`, `day_book`), IPC `daybook:*`, `pages/DayBook.tsx`. Balance carry-forward is computed by replaying days up to the chosen day; a typed opening balance resets the chain. Decision: credit bills are not "money received"; supplier purchases are informational only (user's earlier "just for info" request). E2E expectation first assumed 1,150 but received cash includes the 10% tax (1,170): test bug, not app bug.
 
+## 2026-10-25: Windows installer for a client (v0.9.3)
+User wants to hand the client only an .exe and a database file. Built the NSIS installer from the Mac. Two mistakes caught: the first installer contained the user's exported database (electron-builder packs every file not excluded, and I had put the export inside the project folder); fixed by excluding data/build files in `electron-builder.yml`, moving the export to a separate `Delivery` folder, rebuilding and listing the asar to confirm. Also, inspecting the asar with `asar extract-file` overwrote the project's `package.json`; restored from git. Lesson: inspect packages in a scratch folder.
+
 ## 2026-10-24: Add phones directly, owed money out of spending (v0.9.0)
 User could not add IMEIs for a new tracked phone (only via a purchase) and said the money owed to parties should not appear in the day book or dashboard spending, only on the Parties page, with a "money owed" section at the end of the dashboard. This settles the cash-basis question left open in v0.7.0: supplier spend is now paid_minor + later payments. Profit was already independent of purchases. Two e2e tests broke because a new tracked phone now opens the IMEI window; fixed in the tests, not by changing the behaviour.
 

@@ -10,6 +10,7 @@ import BillsPage from './pages/Bills'
 import DashboardPage from './pages/Dashboard'
 import DayBookPage from './pages/DayBook'
 import LabelDesignerPage from './pages/LabelDesigner'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import ReportsPage from './pages/Reports'
 import SettingsPage from './pages/Settings'
 
@@ -64,16 +65,18 @@ function Shell(): React.JSX.Element {
           ))}
         </nav>
         <main>
-          {tab === 'billing' && <BillingPage onPrint={setJob} />}
-          {tab === 'dashboard' && <DashboardPage onGo={setTab} />}
-          {tab === 'products' && <ProductsPage onPrint={setJob} />}
-          {tab === 'labeldesign' && <LabelDesignerPage onPrint={setJob} />}
-          {tab === 'purchases' && <PurchasesPage />}
-          {tab === 'parties' && <PartiesPage />}
-          {tab === 'bills' && <BillsPage onPrint={setJob} />}
-          {tab === 'daybook' && <DayBookPage />}
-          {tab === 'reports' && <ReportsPage />}
-          {tab === 'settings' && <SettingsPage />}
+          <ErrorBoundary key={tab}>
+            {tab === 'billing' && <BillingPage onPrint={setJob} />}
+            {tab === 'dashboard' && <DashboardPage onGo={setTab} />}
+            {tab === 'products' && <ProductsPage onPrint={setJob} />}
+            {tab === 'labeldesign' && <LabelDesignerPage onPrint={setJob} />}
+            {tab === 'purchases' && <PurchasesPage />}
+            {tab === 'parties' && <PartiesPage />}
+            {tab === 'bills' && <BillsPage onPrint={setJob} />}
+            {tab === 'daybook' && <DayBookPage />}
+            {tab === 'reports' && <ReportsPage />}
+            {tab === 'settings' && <SettingsPage />}
+          </ErrorBoundary>
         </main>
       </div>
       {job && <PrintArea job={job} settings={settings} onDone={done} />}

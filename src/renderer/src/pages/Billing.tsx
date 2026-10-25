@@ -33,6 +33,10 @@ export default function BillingPage({
   const [saving, setSaving] = useState(false)
 
   useEffect(() => inputRef.current?.focus(), [])
+  const [selectTick, setSelectTick] = useState(0)
+  useEffect(() => {
+    if (selectTick) inputRef.current?.select()
+  }, [selectTick])
 
   // Clicking −, + or × moves focus onto a button (and × removes that button), so the scan box lost focus
   // and the next scan went nowhere. If typing starts while nothing useful has focus, send it to the scan box.
@@ -130,7 +134,8 @@ export default function BillingPage({
             u.data.customerName ? ` to ${u.data.customerName}` : ''
           }`
         })
-        setTimeout(() => inputRef.current?.select(), 0)
+        if (inputRef.current && !inputRef.current.value) setScan(text)
+        setSelectTick((t) => t + 1)
         return
       }
       const owner = await window.api.products.list(u.data.serial)
@@ -153,7 +158,8 @@ export default function BillingPage({
     else {
       setMsg({ ok: false, text: `No product found for “${text}”` })
       // Highlight the unknown code so the next scan replaces it instead of being glued onto the end.
-      setTimeout(() => inputRef.current?.select(), 0)
+      // This runs from an effect after the text is back in the box (a timer could fire before that).
+      setSelectTick((t) => t + 1)
     }
   }
 

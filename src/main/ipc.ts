@@ -59,6 +59,7 @@ export function registerIpc(db: Db): void {
     bills.createBill(db, input)
   )
   handle('bills:list', (search?: string) => bills.listBills(db, search))
+  handle('bills:delete', (id: number) => bills.deleteBill(db, id))
   handle('bills:get', (id: number) => bills.getBill(db, id))
 
   handle('reports:get', (range: Parameters<typeof reports.getReport>[1]) =>

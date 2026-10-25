@@ -14,10 +14,29 @@ export default function BillsPage({
   const [bills, setBills] = useState<Bill[]>([])
   const [search, setSearch] = useState('')
   const [open, setOpen] = useState<number | null>(null)
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [reload, setReload] = useState(0)
 
   useEffect(() => {
     void window.api.bills.list(search).then((r) => r.ok && setBills(r.data))
-  }, [search])
+  }, [search, reload])
+
+  async function remove(b: Bill): Promise<void> {
+    if (
+      !window.confirm(
+        `Delete ${b.billNo}?\n\nIts items go back into stock, and it disappears from sales, profit and the day book. This cannot be undone.`
+      )
+    )
+      return
+    const r = await window.api.bills.delete(b.id)
+    setMsg(
+      r.ok
+        ? { ok: true, text: `Deleted ${b.billNo}; items are back in stock` }
+        : { ok: false, text: r.error }
+    )
+    setOpen(null)
+    setReload((n) => n + 1)
+  }
 
   return (
     <div className="page">
@@ -30,6 +49,11 @@ export default function BillsPage({
           aria-label="Search bills"
         />
       </div>
+      {msg && (
+        <p className={msg.ok ? 'ok' : 'err'} role="status">
+          {msg.text}
+        </p>
+      )}
       <table className="grid">
         <thead>
           <tr>
@@ -55,6 +79,13 @@ export default function BillsPage({
                     {open === b.id ? 'Hide' : 'View'}
                   </button>
                   <button onClick={() => onPrint({ kind: 'receipt', bill: b })}>Reprint</button>
+                  <button
+                    className="danger"
+                    aria-label={`Delete ${b.billNo}`}
+                    onClick={() => void remove(b)}
+                  >
+                    Delete
+                  </button>
                 </td>
               </tr>
               {open === b.id && (
@@ -72,6 +103,13 @@ export default function BillsPage({
                         </li>
                       ))}
                     </ul>
+                    {(b.discountMinor > 0 || b.taxMinor > 0) && (
+                      <p className="muted">
+                        Subtotal {formatMoney(b.subtotalMinor, sym)}
+                        {b.discountMinor > 0 && ` · Discount ${formatMoney(b.discountMinor, sym)}`}
+                        {b.taxMinor > 0 && ` · Tax ${formatMoney(b.taxMinor, sym)}`}
+                      </p>
+                    )}
                   </td>
                 </tr>
               )}
