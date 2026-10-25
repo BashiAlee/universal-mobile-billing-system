@@ -2,6 +2,14 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com). Versions follow SemVer.
 
+## [0.9.5] - 2026-10-25: Print straight to the chosen printer (Windows print window fix)
+
+### Fixed / Added
+- On the user's Windows laptop the print window ("Universal Billing System - Print") showed "Something went wrong" and a disabled Print button for the Xprinter XP-420B. That window is the Windows system print dialog opened by `window.print()`; it fails with some printer drivers.
+- **Settings > Printer: Receipt printer and Label printer.** Choose a printer and jobs go straight to it with no print window (`webContents.print({ silent: true, deviceName, ... })` in the main process, service `printing.ts`, IPC `print:printers` / `print:run`). Labels are sent with the label design's own paper size (mm); receipts use the printer's own paper setting. Leaving "Ask me each time" keeps the old behaviour (normal print window). If a printer rejects the job an alert says why.
+- Settings keys `receiptPrinter`, `labelPrinter` (empty by default).
+- **Not verified on real hardware**: tested only that the settings, printer list and the refusal of an empty printer name work; actual silent printing to the XP-420B has not been seen working.
+
 ## [0.9.4] - 2026-10-25: Delete a bill; discount in the Day book
 
 ### Added

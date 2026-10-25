@@ -12,6 +12,7 @@ import * as dashboard from './services/dashboard'
 import * as reports from './services/reports'
 import * as settings from './services/settings'
 import * as labels from './services/labels'
+import * as printing from './services/printing'
 
 /** Wraps a handler so errors become {ok:false,error} instead of rejected IPC promises. */
 function handle<A extends unknown[], T>(channel: string, fn: (...args: A) => T): void {
@@ -65,6 +66,23 @@ export function registerIpc(db: Db): void {
   handle('reports:get', (range: Parameters<typeof reports.getReport>[1]) =>
     reports.getReport(db, range)
   )
+
+  // Printing needs the window that asked, so these two use the IPC event directly.
+  ipcMain.handle('print:printers', async (e): Promise<Result<printing.PrinterOption[]>> => {
+    try {
+      return { ok: true, data: await printing.listPrinters(e.sender) }
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : 'Could not list printers' }
+    }
+  })
+  ipcMain.handle('print:run', async (e, opts: printing.PrintOptions): Promise<Result<void>> => {
+    try {
+      await printing.printSilently(e.sender, opts)
+      return { ok: true, data: undefined }
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : 'Printing failed' }
+    }
+  })
 
   ipcMain.handle('file:saveCsv', (_e, name: string, content: string) => saveCsv(name, content))
 

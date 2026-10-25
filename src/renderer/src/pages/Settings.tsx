@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useSettings } from '../lib/useSettings'
 import type { ShopSettings } from '../../../shared/types'
 
@@ -9,6 +9,19 @@ export default function SettingsPage(): React.JSX.Element {
   const [form, setForm] = useState<ShopSettings | null>(settings)
   const [taxPct, setTaxPct] = useState(settings ? String(settings.taxRateBp / 100) : '0')
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [printers, setPrinters] = useState<
+    { name: string; displayName: string; isDefault: boolean }[]
+  >([])
+  useEffect(() => {
+    void window.api.print.printers().then((r) => r.ok && setPrinters(r.data))
+  }, [])
+  // A printer chosen earlier stays in the list even when it is switched off right now.
+  const printerList = (
+    chosen: string
+  ): { name: string; displayName: string; isDefault: boolean }[] =>
+    chosen && !printers.some((p) => p.name === chosen)
+      ? [...printers, { name: chosen, displayName: `${chosen} (not found now)`, isDefault: false }]
+      : printers
   if (!form) return <p>Loading…</p>
 
   const set = <K extends keyof ShopSettings>(k: K, v: ShopSettings[K]): void =>
@@ -82,6 +95,39 @@ export default function SettingsPage(): React.JSX.Element {
             <option value={58}>58 mm</option>
           </select>
         </label>
+        <label>
+          Receipt printer
+          <select
+            value={form.receiptPrinter}
+            onChange={(e) => set('receiptPrinter', e.target.value)}
+          >
+            <option value="">Ask me each time (Windows print window)</option>
+            {printerList(form.receiptPrinter).map((p) => (
+              <option key={p.name} value={p.name}>
+                {p.displayName}
+                {p.isDefault ? ' (default)' : ''}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Label printer
+          <select value={form.labelPrinter} onChange={(e) => set('labelPrinter', e.target.value)}>
+            <option value="">Ask me each time (Windows print window)</option>
+            {printerList(form.labelPrinter).map((p) => (
+              <option key={p.name} value={p.name}>
+                {p.displayName}
+                {p.isDefault ? ' (default)' : ''}
+              </option>
+            ))}
+          </select>
+        </label>
+        <p className="muted" style={{ margin: 0 }}>
+          Choose a printer to print straight to it, without the Windows print window. Leave “Ask me
+          each time” to use the normal print window. Set the paper size in the printer’s own Windows
+          settings too (labels: your label size).
+          {printers.length === 0 && ' No printers were found on this computer.'}
+        </p>
         <label>
           Code on product labels
           <select

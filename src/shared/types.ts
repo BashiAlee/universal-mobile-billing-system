@@ -107,6 +107,9 @@ export interface ShopSettings {
   labelHeightMm: number
   /** Code printed on product labels. Both are scannable by a normal USB scanner. */
   labelCodeType: 'barcode' | 'qr'
+  /** Windows printer names. Empty = show the normal print window each time. */
+  receiptPrinter: string
+  labelPrinter: string
 }
 
 export type StockReason = 'initial' | 'purchase' | 'adjustment' | 'sale' | 'return'

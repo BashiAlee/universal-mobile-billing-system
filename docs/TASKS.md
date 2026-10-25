@@ -38,7 +38,7 @@ Last updated: 2026-10-23 (v0.3.0)
 - [ ] **Run the app on a real Windows PC** and check layout, fonts and window behaviour (only run on macOS so far)
 - [ ] **Run the Windows installer on a real Windows PC** (it is built, see CHANGELOG 0.9.3, but never run there). Not code-signed. App icon in `build/`/`resources/` is still the Electron template icon
 - [ ] **Test with a real USB QR scanner**; only simulated keyboard input tested
-- [ ] **Test real printing on the user's XPrinter**: confirm the model (receipt printer vs label/barcode printer), paper width, label size; check receipt and label layout, margins and QR size on actual output. Consider silent printing (no dialog) once the printer is known
+- [ ] **Retest printing on the XP-420B with the v0.9.5 'choose printer' setting** (the Windows print window failed with 'Something went wrong'); check paper size, margins, barcode size. **Test real printing on the user's XPrinter**: confirm the model (receipt printer vs label/barcode printer), paper width, label size; check receipt and label layout, margins and QR size on actual output. Consider silent printing (no dialog) once the printer is known
 - [ ] **Print a test label from the Label designer on the real label printer** (38 x 25 mm): check alignment, barcode size/scan, set the printer driver paper size to match. Add a print offset setting if the printer shifts the layout
 - [ ] IMEI ideas not built: trade-in/return of a sold unit, per-unit selling price for used phones, IMEI check digit, print IMEI barcode on labels, warranty dates
 - [ ] Parties ideas not built: print/export a party ledger, customers who owe you (udhar), supplier returns

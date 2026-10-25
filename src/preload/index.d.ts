@@ -55,6 +55,14 @@ interface TypedApi {
   reports: {
     get: (range: ReportRange) => Promise<Result<Report>>
   }
+  print: {
+    printers: () => Promise<Result<{ name: string; displayName: string; isDefault: boolean }[]>>
+    run: (opts: {
+      deviceName: string
+      widthMm?: number
+      heightMm?: number
+    }) => Promise<Result<void>>
+  }
   files: {
     /** Asks where to save; resolves to the saved path, or null when cancelled. */
     saveCsv: (name: string, content: string) => Promise<Result<string | null>>

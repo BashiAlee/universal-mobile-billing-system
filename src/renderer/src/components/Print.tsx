@@ -9,6 +9,33 @@ export type PrintJob =
   | { kind: 'receipt'; bill: Bill }
   | { kind: 'labels'; products: LabelProduct[]; copies: number; design?: LabelDesign }
 
+/**
+ * With a printer chosen in Settings the job goes straight to it (no Windows print window, which fails on some
+ * printer drivers). Without one, the normal print window is shown, as before.
+ */
+async function printNow(job: PrintJob, settings: ShopSettings): Promise<void> {
+  const deviceName = job.kind === 'labels' ? settings.labelPrinter : settings.receiptPrinter
+  if (!deviceName) {
+    window.print()
+    return
+  }
+  const design =
+    job.kind === 'labels'
+      ? (job.design ??
+        standardDesign(
+          settings.labelWidthMm,
+          settings.labelHeightMm,
+          settings.labelCodeType,
+          !!settings.logoDataUrl
+        ))
+      : null
+  const r = await window.api.print.run({
+    deviceName,
+    ...(design ? { widthMm: design.widthMm, heightMm: design.heightMm } : {})
+  })
+  if (!r.ok) window.alert(`Could not print: ${r.error}\n\nCheck the printer in Settings.`)
+}
+
 /** Rendered off-screen; shown only by @media print. Calls window.print() once mounted. */
 export function PrintArea({
   job,
@@ -21,10 +48,10 @@ export function PrintArea({
 }): React.JSX.Element {
   useEffect(() => {
     const t = setTimeout(() => {
-      window.print()
-      onDone()
+      void printNow(job, settings).finally(onDone)
     }, 150)
     return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [job, onDone])
 
   const m = (n: number): string => formatMoney(n, settings.currencySymbol)

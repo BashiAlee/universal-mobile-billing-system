@@ -69,3 +69,18 @@ describe('settings / white-label branding', () => {
     ).toThrow(/Logo/)
   })
 })
+
+describe('printer settings', () => {
+  it('default to "ask each time", can be saved, and reject nonsense', () => {
+    const db = memoryDb()
+    expect(getSettings(db)).toMatchObject({ receiptPrinter: '', labelPrinter: '' })
+    saveSettings(db, { ...DEFAULT_SETTINGS, labelPrinter: 'Xprinter XP-420B' })
+    expect(getSettings(db).labelPrinter).toBe('Xprinter XP-420B')
+    expect(() =>
+      saveSettings(db, { ...DEFAULT_SETTINGS, receiptPrinter: 'x'.repeat(201) })
+    ).toThrow(/invalid/)
+    expect(() =>
+      saveSettings(db, { ...DEFAULT_SETTINGS, labelPrinter: 5 as unknown as string })
+    ).toThrow(/invalid/)
+  })
+})

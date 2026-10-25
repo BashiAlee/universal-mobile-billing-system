@@ -555,3 +555,13 @@ test('discount shows in the day book; a bill can be deleted and its items return
   await page.getByRole('button', { name: 'Products & stock' }).click()
   expect(await page.getByRole('row', { name: /Phone cover/ }).innerText()).toBe(before)
 })
+
+test('settings: printers can be chosen; printing without a printer name is refused', async () => {
+  await page.getByRole('button', { name: 'Settings' }).click()
+  await expect(page.getByLabel('Receipt printer')).toHaveValue('')
+  await expect(page.getByLabel('Label printer')).toHaveValue('')
+  const list = await page.evaluate(() => window.api.print.printers())
+  expect(list.ok).toBe(true)
+  const r = await page.evaluate(() => window.api.print.run({ deviceName: '' }))
+  expect(r).toMatchObject({ ok: false, error: 'No printer chosen' })
+})

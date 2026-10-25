@@ -13,7 +13,9 @@ export const DEFAULT_SETTINGS: ShopSettings = {
   receiptWidthMm: 80,
   labelWidthMm: 40,
   labelHeightMm: 30,
-  labelCodeType: 'barcode'
+  labelCodeType: 'barcode',
+  receiptPrinter: '',
+  labelPrinter: ''
 }
 
 const MAX_LOGO_CHARS = 1_500_000 // ~1.1 MB of image data once base64-decoded
@@ -46,7 +48,9 @@ export function getSettings(db: Db): ShopSettings {
       stored.labelHeightMm !== undefined
         ? Number(stored.labelHeightMm)
         : DEFAULT_SETTINGS.labelHeightMm,
-    labelCodeType: stored.labelCodeType === 'qr' ? 'qr' : 'barcode'
+    labelCodeType: stored.labelCodeType === 'qr' ? 'qr' : 'barcode',
+    receiptPrinter: stored.receiptPrinter ?? DEFAULT_SETTINGS.receiptPrinter,
+    labelPrinter: stored.labelPrinter ?? DEFAULT_SETTINGS.labelPrinter
   }
 }
 
@@ -72,6 +76,11 @@ export function validateSettings(s: ShopSettings): void {
       throw new Error(`${label} must be between 15 and 200 mm`)
   if (s.labelCodeType !== 'barcode' && s.labelCodeType !== 'qr')
     throw new Error('Label code must be barcode or QR')
+  for (const [label, v] of [
+    ['Receipt printer', s.receiptPrinter],
+    ['Label printer', s.labelPrinter]
+  ] as const)
+    if (typeof v !== 'string' || v.length > 200) throw new Error(`${label} name is invalid`)
   if (s.logoDataUrl) {
     if (s.logoDataUrl.length > MAX_LOGO_CHARS) throw new Error('Logo is too large (max about 1 MB)')
     if (!LOGO_PATTERN.test(s.logoDataUrl))

@@ -30,6 +30,10 @@ const api = {
   reports: {
     get: (range: unknown) => call('reports:get', range)
   },
+  print: {
+    printers: () => call('print:printers'),
+    run: (opts: unknown) => call('print:run', opts)
+  },
   files: {
     saveCsv: (name: string, content: string) => call('file:saveCsv', name, content)
   },
