@@ -2,6 +2,11 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com). Versions follow SemVer.
 
+## [0.11.2] - 2026-10-26: Licensing switched on
+
+- `LICENSE_SERVER_URL` is now `https://universal-mobile-billing-system.onrender.com` (the user's Render service). The installed program asks for a license key after the first account is created, and re-checks at start-up and every 6 hours. Checked against the live server: `/health` and `/admin` answer, a made-up key is refused with "Unknown license key", and the program shows that message on its Activate screen. A real key has not been activated through the installer yet.
+- While developing (`npm run dev`) nothing is checked unless `UBS_ENFORCE_LICENSE=1` is set.
+
 ## [0.11.1] - 2026-10-26: One print at a time
 
 ### Fixed

@@ -4,7 +4,7 @@ import { app } from 'electron'
  * Address of the license server (see license-server/README.md). While this is empty the program
  * does not check any license at all. Set it once the server is deployed, then rebuild the installer.
  */
-export const LICENSE_SERVER_URL = ''
+export const LICENSE_SERVER_URL = 'https://universal-mobile-billing-system.onrender.com'
 
 /** Public half of the signing key. Answers are trusted only if they carry a valid signature from the private half. */
 export const LICENSE_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
