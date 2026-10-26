@@ -16,6 +16,9 @@ files:
   - '!**/*.db-*'
   - '!**/*.tsbuildinfo'
   - '!{dist,playwright-report}/**'
+  - '!license-server/**'
+  - '!render.yaml'
+  - '!*.pem'
 asarUnpack:
   - resources/**
 win:
