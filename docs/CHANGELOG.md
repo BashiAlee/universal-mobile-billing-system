@@ -2,6 +2,12 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com). Versions follow SemVer.
 
+## [0.11.3] - 2026-10-26: Switch-offs are noticed sooner
+
+- Reported: after deleting a license in the admin page the shop could still work. By design a change only reaches a shop at its next check, and checks were every 6 hours. Now the program asks the server **every 10 minutes**, whenever the window is used again after being away (at most once a minute), and 3 seconds after start-up. A shop without internet still keeps working on its saved answer for up to 7 days (server setting `GRACE_DAYS`).
+- **Settings > Subscription** card shows the shop, key, paid-until date and status, with a **Check now** button.
+- Tested: deleting a license makes the next check show the Activate screen and refuse changes.
+
 ## [0.11.2] - 2026-10-26: Licensing switched on
 
 - `LICENSE_SERVER_URL` is now `https://universal-mobile-billing-system.onrender.com` (the user's Render service). The installed program asks for a license key after the first account is created, and re-checks at start-up and every 6 hours. Checked against the live server: `/health` and `/admin` answer, a made-up key is refused with "Unknown license key", and the program shows that message on its Activate screen. A real key has not been activated through the installer yet.

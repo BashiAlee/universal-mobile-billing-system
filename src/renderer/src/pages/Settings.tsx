@@ -3,6 +3,7 @@ import { useSettings } from '../lib/useSettings'
 import type { ShopSettings } from '../../../shared/types'
 import type { PrintJob } from '../components/Print'
 import { usePrinting } from '../lib/usePrinting'
+import type { LicenseStatus } from '../../../shared/types'
 
 const MAX_LOGO_BYTES = 1024 * 1024
 
@@ -16,6 +17,11 @@ export default function SettingsPage({
   const [form, setForm] = useState<ShopSettings | null>(settings)
   const [taxPct, setTaxPct] = useState(settings ? String(settings.taxRateBp / 100) : '0')
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [lic, setLic] = useState<LicenseStatus | null>(null)
+  const [checking, setChecking] = useState(false)
+  useEffect(() => {
+    void window.api.license.status().then((r) => r.ok && setLic(r.data))
+  }, [])
   const [printers, setPrinters] = useState<
     { name: string; displayName: string; isDefault: boolean }[]
   >([])
@@ -67,6 +73,30 @@ export default function SettingsPage({
         <p className={`sticky-msg ${msg.ok ? 'ok' : 'err'}`} role="status">
           {msg.text}
         </p>
+      )}
+      {lic?.enforced && (
+        <div className="card" role="region" aria-label="Subscription">
+          <h2 style={{ marginTop: 0 }}>Subscription</h2>
+          <p>
+            {lic.state === 'active'
+              ? `Active until ${lic.paidUntil}${lic.daysLeft !== null ? ` (${lic.daysLeft} days left)` : ''}.`
+              : `Not active: ${lic.message || lic.state}`}{' '}
+            <span className="muted">
+              Licensed to {lic.shop || '-'} · key {lic.licenseKey || '-'}
+            </span>
+          </p>
+          <button
+            disabled={checking}
+            onClick={async () => {
+              setChecking(true)
+              const r = await window.api.license.check()
+              setChecking(false)
+              if (r.ok) setLic(r.data)
+            }}
+          >
+            {checking ? 'Checking…' : 'Check now'}
+          </button>
+        </div>
       )}
       <div className="form">
         <label>

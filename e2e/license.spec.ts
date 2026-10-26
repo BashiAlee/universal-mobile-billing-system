@@ -122,3 +122,14 @@ test('switching it back on: "Check again" restores everything', async () => {
   })
   expect(r.ok).toBe(true)
 })
+
+test('deleting the license: at the next check the program asks for a key again and refuses changes', async () => {
+  await (store as unknown as { remove(k: string): Promise<boolean> }).remove(KEY)
+  const st = await page.evaluate(() => window.api.license.check())
+  expect(st).toMatchObject({ ok: true, data: { state: 'unlicensed' } })
+  const write = await page.evaluate(() => window.api.products.create({ name: 'Y', priceMinor: 1 }))
+  expect(write).toMatchObject({ ok: false })
+  await page.reload()
+  await expect(page.getByRole('heading', { name: 'Activate the program' })).toBeVisible()
+  await expect(page.getByText('Signed in as')).toHaveCount(0)
+})

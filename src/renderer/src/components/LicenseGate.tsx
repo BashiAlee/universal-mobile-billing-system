@@ -20,7 +20,18 @@ export function LicenseGate({ children }: { children: ReactNode }): React.JSX.El
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void refresh()
     const t = setInterval(() => void refresh(), 30_000)
-    return () => clearInterval(t)
+    // Coming back to the window asks the server again (at most once a minute), so a switch-off is noticed quickly.
+    let lastAsk = 0
+    const onFocus = (): void => {
+      if (Date.now() - lastAsk < 60_000) return
+      lastAsk = Date.now()
+      void window.api.license.check().then((r) => r.ok && setSt(r.data))
+    }
+    window.addEventListener('focus', onFocus)
+    return () => {
+      clearInterval(t)
+      window.removeEventListener('focus', onFocus)
+    }
   }, [refresh])
 
   if (!st) return <p style={{ padding: 24 }}>Loading…</p>

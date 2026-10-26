@@ -86,10 +86,10 @@ export function registerIpc(db: Db): void {
   handle('license:activate', (key: string) => activateLicense(db, licCfg, String(key), Date.now()))
   handle('license:check', () => checkLicense(db, licCfg, Date.now()))
   if (licCfg.enforced) {
-    // Ask the server shortly after start-up and then every few hours; no internet just means the saved answer is used.
+    // Ask the server shortly after start-up and then every 10 minutes; no internet just means the saved answer is used.
     const ask = (): void => void checkLicense(db, licCfg, Date.now()).catch(() => {})
     setTimeout(ask, 3000)
-    setInterval(ask, 6 * 60 * 60 * 1000).unref()
+    setInterval(ask, 10 * 60 * 1000).unref()
   }
 
   const status = (): AuthStatus => {
