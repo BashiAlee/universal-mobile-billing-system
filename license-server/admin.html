@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Licenses</title>
+    <style>
+      body {
+        font:
+          14px/1.45 system-ui,
+          sans-serif;
+        margin: 0;
+        background: #f5f6f8;
+        color: #1c2230;
+      }
+      main {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      h1 {
+        font-size: 20px;
+        margin: 0 0 12px;
+      }
+      .card {
+        background: #fff;
+        border: 1px solid #e1e4ea;
+        border-radius: 8px;
+        padding: 14px;
+        margin-bottom: 16px;
+      }
+      input,
+      button {
+        font: inherit;
+        padding: 6px 10px;
+        border: 1px solid #e1e4ea;
+        border-radius: 6px;
+        background: #fff;
+      }
+      button {
+        cursor: pointer;
+      }
+      button.primary {
+        background: #2457d6;
+        color: #fff;
+        border-color: #2457d6;
+      }
+      button.danger {
+        color: #c4302b;
+      }
+      label {
+        display: inline-flex;
+        flex-direction: column;
+        gap: 2px;
+        margin-right: 10px;
+        color: #6b7385;
+        font-size: 12px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        background: #fff;
+      }
+      th,
+      td {
+        padding: 8px 10px;
+        border-bottom: 1px solid #e1e4ea;
+        text-align: left;
+        vertical-align: top;
+      }
+      code {
+        font-family: ui-monospace, Menlo, Consolas, monospace;
+      }
+      .bad {
+        color: #c4302b;
+        font-weight: 600;
+      }
+      .good {
+        color: #1c7c3a;
+        font-weight: 600;
+      }
+      #msg {
+        min-height: 1.4em;
+      }
+      .muted {
+        color: #6b7385;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Shop licenses</h1>
+      <div class="card">
+        <label>Admin token <input id="token" type="password" autocomplete="off" /></label>
+        <button class="primary" id="load">Load</button>
+        <span id="msg" role="status"></span>
+      </div>
+
+      <div class="card">
+        <strong>Add a shop</strong><br /><br />
+        <label>Shop name <input id="shop" /></label>
+        <label>Paid until <input id="paid" type="date" /></label>
+        <label
+          >Computers allowed
+          <input id="max" type="number" min="1" max="20" value="2" style="width: 80px"
+        /></label>
+        <label>Note <input id="note" /></label>
+        <button class="primary" id="add">Add shop</button>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Shop</th>
+            <th>License key</th>
+            <th>Status</th>
+            <th>Paid until</th>
+            <th>Computers</th>
+            <th>Last seen</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="rows">
+          <tr>
+            <td colspan="7" class="muted">Enter the admin token and click Load.</td>
+          </tr>
+        </tbody>
+      </table>
+    </main>
+    <script>
+      const $ = (id) => document.getElementById(id)
+      const say = (t, bad) => {
+        $('msg').textContent = t
+        $('msg').className = bad ? 'bad' : 'good'
+      }
+      $('token').value = sessionStorage.getItem('adminToken') || ''
+      async function api(method, path, body) {
+        const r = await fetch('/admin/api/licenses' + path, {
+          method,
+          headers: { 'Content-Type': 'application/json', 'x-admin-token': $('token').value },
+          body: body ? JSON.stringify(body) : undefined
+        })
+        const data = await r.json().catch(() => ({}))
+        if (!r.ok) throw new Error(data.error || r.statusText)
+        return data
+      }
+      const esc = (s) =>
+        String(s ?? '').replace(
+          /[&<>"]/g,
+          (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]
+        )
+      const today = () => new Date().toISOString().slice(0, 10)
+      const addDays = (d, n) => {
+        const x = new Date(d + 'T00:00:00Z')
+        x.setUTCDate(x.getUTCDate() + n)
+        return x.toISOString().slice(0, 10)
+      }
+
+      async function load() {
+        try {
+          sessionStorage.setItem('adminToken', $('token').value)
+          const { licenses } = await api('GET', '')
+          $('rows').innerHTML =
+            licenses
+              .map((l) => {
+                const expired = l.paidUntil < today()
+                const on = l.status === 'active' && !expired
+                return `<tr>
+        <td>${esc(l.shop)}<div class="muted">${esc(l.note)}</div></td>
+        <td><code>${esc(l.key)}</code></td>
+        <td class="${on ? 'good' : 'bad'}">${on ? 'Active' : l.status === 'active' ? 'Expired' : 'Suspended'}</td>
+        <td>${esc(l.paidUntil)}</td>
+        <td>${(l.machines || []).length} of ${esc(l.maxMachines)}</td>
+        <td>${l.lastSeen ? esc(new Date(l.lastSeen).toLocaleString()) : '-'}</td>
+        <td>
+          <button data-a="toggle" data-k="${esc(l.key)}" data-s="${esc(l.status)}">${l.status === 'active' ? 'Suspend' : 'Activate'}</button>
+          <button data-a="extend" data-k="${esc(l.key)}" data-p="${esc(l.paidUntil)}">+30 days</button>
+          <button data-a="date" data-k="${esc(l.key)}" data-p="${esc(l.paidUntil)}">Set date</button>
+          <button data-a="reset" data-k="${esc(l.key)}">Reset computers</button>
+          <button class="danger" data-a="del" data-k="${esc(l.key)}">Delete</button>
+        </td></tr>`
+              })
+              .join('') || '<tr><td colspan="7" class="muted">No shops yet.</td></tr>'
+          say(`${licenses.length} shop(s)`)
+        } catch (e) {
+          say(e.message, true)
+        }
+      }
+      $('load').onclick = load
+      $('add').onclick = async () => {
+        try {
+          const { license } = await api('POST', '', {
+            shop: $('shop').value,
+            paidUntil: $('paid').value,
+            maxMachines: $('max').value,
+            note: $('note').value
+          })
+          say('Added. License key: ' + license.key)
+          $('shop').value = ''
+          $('note').value = ''
+          await load()
+          say('Added. License key: ' + license.key)
+        } catch (e) {
+          say(e.message, true)
+        }
+      }
+      $('rows').onclick = async (ev) => {
+        const b = ev.target.closest('button')
+        if (!b) return
+        const k = encodeURIComponent(b.dataset.k)
+        try {
+          if (b.dataset.a === 'toggle')
+            await api('PATCH', '/' + k, {
+              status: b.dataset.s === 'active' ? 'suspended' : 'active'
+            })
+          if (b.dataset.a === 'extend')
+            await api('PATCH', '/' + k, {
+              paidUntil: addDays(b.dataset.p > today() ? b.dataset.p : today(), 30)
+            })
+          if (b.dataset.a === 'date') {
+            const d = prompt('Paid until (YYYY-MM-DD):', b.dataset.p)
+            if (!d) return
+            await api('PATCH', '/' + k, { paidUntil: d })
+          }
+          if (b.dataset.a === 'reset') {
+            if (!confirm('Allow this license to be used on new computers?')) return
+            await api('POST', '/' + k + '/reset-machines', {})
+          }
+          if (b.dataset.a === 'del') {
+            if (!confirm('Delete this license? The shop will stop working at its next check.'))
+              return
+            await api('DELETE', '/' + k)
+          }
+          await load()
+        } catch (e) {
+          say(e.message, true)
+        }
+      }
+      if ($('token').value) load()
+    </script>
+  </body>
+</html>

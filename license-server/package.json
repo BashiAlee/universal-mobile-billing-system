@@ -1,0 +1,17 @@
+{
+  "name": "ubs-license-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Tiny license server for Universal Billing System: shops ask it whether their subscription is active.",
+  "main": "server.mjs",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "mongodb": "^6.10.0"
+  }
+}

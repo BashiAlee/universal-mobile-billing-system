@@ -5,6 +5,7 @@ import {
   type ElectronApplication,
   type Page
 } from '@playwright/test'
+import { signIn } from './helpers'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { tmpdir } from 'node:os'
@@ -48,6 +49,7 @@ async function launch(): Promise<void> {
       })
     }
   })
+  await signIn(page)
 }
 
 const prints = (): Promise<number> => page.evaluate(() => (window as unknown as W).__prints)

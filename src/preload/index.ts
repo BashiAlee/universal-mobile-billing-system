@@ -6,6 +6,26 @@ const call = <T>(channel: string, ...args: unknown[]): Promise<Result<T>> =>
 
 // Narrow, explicit API surface. The renderer never gets raw ipcRenderer access.
 const api = {
+  auth: {
+    status: () => call('auth:status'),
+    setup: (username: string, password: string) => call('auth:setup', username, password),
+    login: (username: string, password: string) => call('auth:login', username, password),
+    logout: () => call('auth:logout'),
+    ping: () => call('auth:ping'),
+    recover: (username: string, code: string, newPassword: string) =>
+      call('auth:recover', username, code, newPassword)
+  },
+  license: {
+    status: () => call('license:status'),
+    activate: (key: string) => call('license:activate', key),
+    check: () => call('license:check')
+  },
+  users: {
+    list: () => call('users:list'),
+    add: (username: string, password: string) => call('users:add', username, password),
+    setPassword: (id: number, password: string) => call('users:setPassword', id, password),
+    delete: (id: number) => call('users:delete', id)
+  },
   settings: {
     get: () => call('settings:get'),
     save: (s: unknown) => call('settings:save', s)

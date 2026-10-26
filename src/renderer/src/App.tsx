@@ -11,6 +11,10 @@ import DashboardPage from './pages/Dashboard'
 import DayBookPage from './pages/DayBook'
 import LabelDesignerPage from './pages/LabelDesigner'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { AuthGate } from './components/AuthGate'
+import { LicenseGate } from './components/LicenseGate'
+import UsersPage from './pages/Users'
+import { useAuth } from './lib/useAuth'
 import ReportsPage from './pages/Reports'
 import SettingsPage from './pages/Settings'
 
@@ -24,6 +28,7 @@ type Tab =
   | 'bills'
   | 'daybook'
   | 'reports'
+  | 'users'
   | 'settings'
 const TABS: { id: Tab; label: string }[] = [
   { id: 'billing', label: 'New bill' },
@@ -35,11 +40,13 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'bills', label: 'Bill history' },
   { id: 'daybook', label: 'Day book' },
   { id: 'reports', label: 'Reports' },
+  { id: 'users', label: 'Users' },
   { id: 'settings', label: 'Settings' }
 ]
 
 function Shell(): React.JSX.Element {
   const { settings } = useSettings()
+  const { username, logout } = useAuth()
   const [tab, setTab] = useState<Tab>('billing')
   const [job, setJob] = useState<PrintJob | null>(null)
   const done = useCallback(() => setJob(null), [])
@@ -63,6 +70,11 @@ function Shell(): React.JSX.Element {
               {t.label}
             </button>
           ))}
+          <div className="sidebar-user">
+            <span>Signed in as</span>
+            <strong>{username}</strong>
+            <button onClick={() => void logout()}>Log out</button>
+          </div>
         </nav>
         <main>
           <ErrorBoundary key={tab}>
@@ -75,6 +87,7 @@ function Shell(): React.JSX.Element {
             {tab === 'bills' && <BillsPage onPrint={setJob} />}
             {tab === 'daybook' && <DayBookPage />}
             {tab === 'reports' && <ReportsPage />}
+            {tab === 'users' && <UsersPage />}
             {tab === 'settings' && <SettingsPage onPrint={setJob} />}
           </ErrorBoundary>
         </main>
@@ -86,8 +99,12 @@ function Shell(): React.JSX.Element {
 
 export default function App(): React.JSX.Element {
   return (
-    <SettingsProvider>
-      <Shell />
-    </SettingsProvider>
+    <AuthGate>
+      <LicenseGate>
+        <SettingsProvider>
+          <Shell />
+        </SettingsProvider>
+      </LicenseGate>
+    </AuthGate>
   )
 }

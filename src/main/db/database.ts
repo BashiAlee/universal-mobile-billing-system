@@ -173,6 +173,17 @@ const MIGRATIONS: string[] = [
   -- Dual-SIM phones have a second IMEI. It identifies the same unit and must be unique too.
   ALTER TABLE serial_units ADD COLUMN serial2 TEXT;
   CREATE UNIQUE INDEX idx_serial_units_serial2 ON serial_units(serial2) WHERE serial2 IS NOT NULL;
+  `,
+  `
+  -- Logins: one row per person who may use the program. Passwords are stored only as salted scrypt hashes.
+  CREATE TABLE users (
+    id INTEGER PRIMARY KEY,
+    username TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    password_hash TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );
+  -- Who made each bill (the username at the time; blank for bills made before logins existed).
+  ALTER TABLE bills ADD COLUMN created_by TEXT NOT NULL DEFAULT '';
   `
 ]
 

@@ -13,7 +13,7 @@ export function computeTax(taxableMinor: number, taxRateBp: number): number {
 export const PAYMENT_METHODS = ['cash', 'card', 'mobile', 'credit'] as const
 const MAX_BILL_MINOR = 1_000_000_000_000_000 // keeps every sum below Number.MAX_SAFE_INTEGER
 
-export function createBill(db: Db, input: BillInput): Bill {
+export function createBill(db: Db, input: BillInput, createdBy = ''): Bill {
   if (!Array.isArray(input.items) || !input.items.length)
     throw new Error('Add at least one item to the bill')
   const discountMinor = input.discountMinor ?? 0
@@ -129,8 +129,8 @@ export function createBill(db: Db, input: BillInput): Bill {
 
     const res = db
       .prepare(
-        `INSERT INTO bills (bill_no, created_at, subtotal_minor, discount_minor, tax_minor, total_minor, payment_method, customer_name, tendered_minor)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO bills (bill_no, created_at, subtotal_minor, discount_minor, tax_minor, total_minor, payment_method, customer_name, tendered_minor, created_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         `tmp-${crypto.randomUUID()}`,
@@ -141,7 +141,8 @@ export function createBill(db: Db, input: BillInput): Bill {
         total,
         paymentMethod,
         input.customerName?.trim() ?? '',
-        tendered
+        tendered,
+        createdBy
       )
     const billId = Number(res.lastInsertRowid)
     const billNo = `INV-${String(billId).padStart(6, '0')}`
@@ -178,6 +179,7 @@ interface BillRow {
   payment_method: string
   customer_name: string
   tendered_minor: number
+  created_by: string
 }
 
 function hydrate(db: Db, r: BillRow): Bill {
@@ -221,6 +223,7 @@ function hydrate(db: Db, r: BillRow): Bill {
     paymentMethod: r.payment_method,
     customerName: r.customer_name,
     tenderedMinor: r.tendered_minor,
+    createdBy: r.created_by,
     items
   }
 }

@@ -87,6 +87,8 @@ export interface Bill {
   customerName: string
   /** Cash received, or 0 if not recorded. Change = tenderedMinor - totalMinor. */
   tenderedMinor: number
+  /** Username of the person who made the bill; empty for bills from before logins. */
+  createdBy: string
   items: BillItem[]
 }
 
@@ -452,4 +454,35 @@ export interface SerialAddInput {
     /** Cost of this phone; defaults to the product's cost price. */
     costMinor?: number
   }[]
+}
+
+export interface AppUser {
+  id: number
+  username: string
+  createdAt: string
+}
+
+/** What the login screen needs before anyone is signed in. */
+export interface AuthStatus {
+  /** False on a fresh install: the first account has to be created. */
+  hasUsers: boolean
+  loggedIn: boolean
+  username: string
+  /** Minutes of no activity after which the program logs out, in milliseconds. */
+  idleMs: number
+  shopName: string
+  logoDataUrl: string
+}
+
+/** What the program may do, according to the saved answer from the license server. */
+export interface LicenseStatus {
+  /** False while no license server is configured: the program then checks nothing. */
+  enforced: boolean
+  state: 'off' | 'unlicensed' | 'active' | 'suspended' | 'expired'
+  shop: string
+  paidUntil: string
+  /** Days until the paid-until date, while active. */
+  daysLeft: number | null
+  message: string
+  licenseKey: string
 }

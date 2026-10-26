@@ -11,3 +11,8 @@ playwright-report
 *.db-shm
 .env
 *.tsbuildinfo
+
+# Signing keys for the license server must never be committed.
+*.pem
+license-keys/
+.env

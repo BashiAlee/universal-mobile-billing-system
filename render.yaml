@@ -1,0 +1,20 @@
+# Render "Blueprint": lets you create the license server with a few clicks (New > Blueprint).
+# The three secrets below are typed into Render's page, never stored in this file.
+services:
+  - type: web
+    name: ubs-license-server
+    runtime: node
+    plan: free
+    rootDir: license-server
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: MONGODB_URI
+        sync: false
+      - key: ADMIN_TOKEN
+        sync: false
+      - key: SIGNING_PRIVATE_KEY_BASE64
+        sync: false
+      - key: GRACE_DAYS
+        value: '7'

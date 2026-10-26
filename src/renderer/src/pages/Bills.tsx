@@ -60,6 +60,7 @@ export default function BillsPage({
             <th>Bill</th>
             <th>Date</th>
             <th>Customer</th>
+            <th>Made by</th>
             <th>Payment</th>
             <th className="num">Total</th>
             <th></th>
@@ -72,6 +73,7 @@ export default function BillsPage({
                 <td>{b.billNo}</td>
                 <td>{new Date(b.createdAt).toLocaleString()}</td>
                 <td>{b.customerName}</td>
+                <td>{b.createdBy}</td>
                 <td>{b.paymentMethod}</td>
                 <td className="num">{formatMoney(b.totalMinor, sym)}</td>
                 <td className="actions">
@@ -90,7 +92,7 @@ export default function BillsPage({
               </tr>
               {open === b.id && (
                 <tr>
-                  <td colSpan={6}>
+                  <td colSpan={7}>
                     <ul className="detail">
                       {b.items.map((i) => (
                         <li key={i.id}>
@@ -117,7 +119,7 @@ export default function BillsPage({
           ))}
           {!bills.length && (
             <tr>
-              <td colSpan={6} className="muted center">
+              <td colSpan={7} className="muted center">
                 No bills yet.
               </td>
             </tr>

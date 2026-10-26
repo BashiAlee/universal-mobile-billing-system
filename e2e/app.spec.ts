@@ -5,6 +5,7 @@ import {
   type ElectronApplication,
   type Page
 } from '@playwright/test'
+import { signIn } from './helpers'
 import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -32,6 +33,7 @@ test.beforeAll(async () => {
       ;(window as unknown as { __prints: number }).__prints++
     }
   })
+  await signIn(page)
 })
 
 test.afterAll(async () => {

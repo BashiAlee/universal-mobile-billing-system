@@ -3,7 +3,11 @@ import { appendFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { saveCsv } from './services/exportFile'
 import type { Db } from './db/database'
-import type { Result } from '../shared/types'
+import type { AuthStatus, Result } from '../shared/types'
+import { IDLE_MS, Session } from './session'
+import * as auth from './services/auth'
+import { licenseConfig } from './license/config'
+import { activateLicense, blockMessage, checkLicense, licenseState } from './services/license'
 import * as products from './services/products'
 import * as bills from './services/bills'
 import * as purchases from './services/purchases'
@@ -16,18 +20,141 @@ import * as settings from './services/settings'
 import * as labels from './services/labels'
 import * as printing from './services/printing'
 
-/** Wraps a handler so errors become {ok:false,error} instead of rejected IPC promises. */
-function handle<A extends unknown[], T>(channel: string, fn: (...args: A) => T): void {
-  ipcMain.handle(channel, (_e, ...args): Result<T> => {
+// Nobody can read or change data until they sign in. This is enforced here in the main process,
+// so a signed-out (or timed-out) screen cannot get anything even if its code were tampered with.
+// UBS_IDLE_MS only exists so the automated tests do not have to wait ten minutes.
+const session = new Session(Number(process.env['UBS_IDLE_MS']) || IDLE_MS)
+
+function requireUser(): { id: number; username: string } {
+  const u = session.current()
+  if (!u) throw new Error('Please log in')
+  session.touch()
+  return u
+}
+
+// Set in registerIpc: refuses changes while the subscription is switched off (viewing and exporting stay possible).
+let licenseGuard: (channel: string) => void = () => {}
+
+/** Wraps a handler so errors become {ok:false,error} instead of rejected IPC promises. Needs a signed-in user unless `open`. */
+function handle<A extends unknown[], T>(
+  channel: string,
+  fn: (...args: A) => T | Promise<T>,
+  open = false
+): void {
+  ipcMain.handle(channel, async (_e, ...args): Promise<Result<T>> => {
     try {
-      return { ok: true, data: fn(...(args as A)) }
+      if (!open) {
+        requireUser()
+        licenseGuard(channel)
+      }
+      return { ok: true, data: await fn(...(args as A)) }
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : 'Unexpected error' }
     }
   })
 }
 
+// These only read data, so they keep working when the subscription is inactive.
+const READ_ONLY_OK = new Set([
+  'settings:get',
+  'products:list',
+  'products:byCode',
+  'products:lowStock',
+  'labels:list',
+  'bills:list',
+  'bills:get',
+  'reports:get',
+  'dashboard:get',
+  'daybook:get',
+  'purchases:list',
+  'purchases:suppliers',
+  'serials:list',
+  'serials:get',
+  'parties:list',
+  'parties:ledger',
+  'users:list'
+])
+
 export function registerIpc(db: Db): void {
+  const licCfg = licenseConfig()
+  licenseGuard = (channel) => {
+    if (!licCfg.enforced || channel.startsWith('license:') || READ_ONLY_OK.has(channel)) return
+    const st = licenseState(db, licCfg, Date.now())
+    if (st.state !== 'active') throw new Error(blockMessage(st))
+  }
+  handle('license:status', () => licenseState(db, licCfg, Date.now()))
+  handle('license:activate', (key: string) => activateLicense(db, licCfg, String(key), Date.now()))
+  handle('license:check', () => checkLicense(db, licCfg, Date.now()))
+  if (licCfg.enforced) {
+    // Ask the server shortly after start-up and then every few hours; no internet just means the saved answer is used.
+    const ask = (): void => void checkLicense(db, licCfg, Date.now()).catch(() => {})
+    setTimeout(ask, 3000)
+    setInterval(ask, 6 * 60 * 60 * 1000).unref()
+  }
+
+  const status = (): AuthStatus => {
+    const u = session.current()
+    const s = settings.getSettings(db)
+    return {
+      hasUsers: auth.countUsers(db) > 0,
+      loggedIn: !!u,
+      username: u?.username ?? '',
+      idleMs: session.idleMs,
+      shopName: s.shopName,
+      logoDataUrl: s.logoDataUrl
+    }
+  }
+  handle('auth:status', status, true)
+  handle(
+    'auth:setup',
+    (username: string, password: string) => {
+      const r = auth.createFirstUser(db, username, password)
+      session.login(r.user)
+      return { username: r.user.username, recoveryCode: r.recoveryCode }
+    },
+    true
+  )
+  handle(
+    'auth:login',
+    (username: string, password: string) => {
+      const wait = session.lockedFor(String(username))
+      if (wait) throw new Error(`Too many wrong attempts. Try again in ${wait} seconds.`)
+      const u = auth.authenticate(db, username, password)
+      if (!u) {
+        session.recordFailure(String(username))
+        throw new Error('Wrong username or password')
+      }
+      session.recordSuccess(String(username))
+      session.login(u)
+      return status()
+    },
+    true
+  )
+  handle('auth:logout', () => session.logout(), true)
+  handle('auth:ping', () => (session.touch(), !!session.current()), true)
+  handle(
+    'auth:recover',
+    (username: string, code: string, newPassword: string) => {
+      const wait = session.lockedFor('recovery')
+      if (wait) throw new Error(`Too many wrong attempts. Try again in ${wait} seconds.`)
+      try {
+        const r = auth.recoverAccess(db, username, code, newPassword)
+        session.recordSuccess('recovery')
+        return r
+      } catch (e) {
+        session.recordFailure('recovery')
+        throw e
+      }
+    },
+    true
+  )
+  handle('users:list', () => auth.listUsers(db))
+  handle('users:add', (username: string, password: string) =>
+    auth.createUser(db, username, password)
+  )
+  handle('users:setPassword', (id: number, password: string) => auth.setPassword(db, id, password))
+  handle('users:delete', (id: number) => auth.deleteUser(db, id, requireUser().id))
+
   handle('settings:get', () => settings.getSettings(db))
   handle('settings:save', (s: Parameters<typeof settings.saveSettings>[1]) =>
     settings.saveSettings(db, s)
@@ -59,7 +186,7 @@ export function registerIpc(db: Db): void {
   handle('labels:setDefault', (id: number) => labels.setDefaultDesign(db, id))
 
   handle('bills:create', (input: Parameters<typeof bills.createBill>[1]) =>
-    bills.createBill(db, input)
+    bills.createBill(db, input, session.current()?.username ?? '')
   )
   handle('bills:list', (search?: string) => bills.listBills(db, search))
   handle('bills:delete', (id: number) => bills.deleteBill(db, id))
@@ -72,12 +199,18 @@ export function registerIpc(db: Db): void {
   // Printing needs the window that asked, so these two use the IPC event directly.
   ipcMain.handle('print:printers', async (e): Promise<Result<printing.PrinterOption[]>> => {
     try {
+      requireUser()
       return { ok: true, data: await printing.listPrinters(e.sender) }
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : 'Could not list printers' }
     }
   })
   ipcMain.handle('print:run', async (e, opts: printing.PrintOptions): Promise<Result<void>> => {
+    try {
+      requireUser()
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : 'Please log in' }
+    }
     // Every attempt is noted in print.log next to the database, so a printing problem can be diagnosed later.
     const note = (result: string): void => {
       try {
@@ -100,7 +233,14 @@ export function registerIpc(db: Db): void {
     }
   })
 
-  ipcMain.handle('file:saveCsv', (_e, name: string, content: string) => saveCsv(name, content))
+  ipcMain.handle('file:saveCsv', (_e, name: string, content: string) => {
+    try {
+      requireUser()
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : 'Please log in' }
+    }
+    return saveCsv(name, content)
+  })
 
   handle('dashboard:get', (range: Parameters<typeof dashboard.getDashboard>[1]) =>
     dashboard.getDashboard(db, range)

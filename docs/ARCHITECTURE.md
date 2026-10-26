@@ -59,6 +59,8 @@ docs/              project documentation
 | `day_book` | `day` PK, `opening_minor` (NULL = carry forward), `notes` (v5) |
 | `products` extra columns (v8) | `category`, `brand`, `model`, `storage`, `ram`, `color`, `compatible_with` (all text, default ''), `track_serial` (0/1) |
 | `serial_units` | `id` PK, `product_id` FK, `serial` UNIQUE (upper-case), `serial2` UNIQUE when set (second IMEI of a dual-SIM phone, v9), `condition` (`new`/`used`), `cost_minor`, `purchase_id` FK, `status` (`in_stock`/`sold`), `bill_item_id` FK, `created_at`, `sold_at` (v8). `products.stock_qty` always equals the in-stock count for tracked products |
+| `settings` keys for the license (not in `ShopSettings`) | `licenseKey`, `licenseToken` (signed answer from the server), `licenseNote`, `licenseLastSeen` |
+| `users` | `id` PK, `username` UNIQUE (nocase), `password_hash` (scrypt, salted), `created_at` (v10). `bills.created_by` = username that made the bill (v10). Recovery code hash is in `settings` under `recoveryHash` |
 | `parties` | `id` PK, `name` UNIQUE (nocase), `phone`, `address`, `notes`, `opening_minor` (owed before the app; negative = they owe us), `created_at` (v7). Balance is never stored: opening + sum(total - paid) - sum(payments) |
 | `party_payments` | `id` PK, `party_id` FK, `amount_minor` > 0, `day`, `note`, `created_at` (v7) |
 | `label_designs` | `id` PK, `name` UNIQUE (nocase), `width_mm`, `height_mm`, `code_type`, `elements` (JSON list of boxes in mm), `is_default`, `created_at` (v6) |
@@ -87,6 +89,9 @@ Every call returns `{ ok: true, data }` or `{ ok: false, error }`. Handlers neve
 | `purchases:create` | `PurchaseInput` | `Purchase` |
 | `purchases:list` | `search?` | `Purchase[]` |
 | `purchases:suppliers` | none | `string[]` |
+| `auth:status/setup/login/logout/ping/recover` | (open: usable while signed out) | status, first account + recovery code, sign-in, sign-out, activity ping, password recovery |
+| `license:status/activate/check` | | signed-in only; never blocked by the license itself |
+| `users:list/add/setPassword/delete` | | requires sign-in |
 | `serials:list` | `{search?, productId?, status?}` | `SerialUnit[]` |
 | `serials:add` | `SerialAddInput` | `Product` |
 | `serials:remove` | unit id | void (in-stock only) |

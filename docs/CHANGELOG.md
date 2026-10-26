@@ -2,6 +2,36 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com). Versions follow SemVer.
 
+## [0.11.0] - 2026-10-26: Subscription control (license server)
+
+### Added
+- **License server** (`license-server/`, plain Node + MongoDB, own README with setup steps) and an **admin page** (`/admin`): add a shop, set paid-until, suspend/activate, +30 days, reset computers, delete. It stores only the license list and never receives shop data.
+- **In the program**: an **Activate the program** screen asks for the license key once (needs internet). The program then asks the server at start-up and every 6 hours, keeps the signed answer, and works offline for up to 7 days (server setting `GRACE_DAYS`). Answers are signed (ed25519), tied to the computer, and a clock set back does not stretch them.
+- **When the subscription is inactive** (suspended, past the paid-until date, key deleted, or no check for more than the grace period): a notice appears with **Check again**, and the main process refuses everything that changes data (billing, products, purchases, settings...). Viewing, exporting CSV, reprinting and the Users list keep working.
+- A key works on a limited number of computers (default 2); the admin can reset them.
+- Switched off by default: until `LICENSE_SERVER_URL` in `src/main/license/config.ts` is set, nothing is checked, so existing builds and installers behave as before. In the installed program the address and public key cannot be overridden by environment variables (only while developing).
+- Signing key pair created outside the project (`../license-keys/`, never committed; `*.pem` is git-ignored). Only the public key is in the program.
+
+### Not done / limits
+- The server has been tested here with an in-memory list, not against a real MongoDB Atlas database or a hosted server; that needs your account.
+- A determined technical person can still tamper with a copy of the program.
+
+## [0.10.0] - 2026-10-26: Usernames and passwords, logout and automatic logout
+
+### Added
+- **Sign-in**: nothing in the program is shown until someone signs in. On a fresh install, or the first start after this update, the first screen is **Create your account** (username, password of at least 6 characters). Each further person gets their own username and password from the new **Users** tab (add, set a new password, delete; you cannot delete yourself or the last user). Everyone can use every screen.
+- **Log out** button in the sidebar (shows who is signed in) and **automatic logout after 10 minutes without mouse, keyboard or touch use**. Closing the program also signs everyone out.
+- **Recovery code**: shown once when the first account is created (must be ticked "I have written it down"). **Forgot password?** on the sign-in screen lets you set a new password with the username and the code; the code is then replaced by a new one that is shown once.
+- **Made by**: bills record the username of the person who made them (Bill history column; blank for older bills). Schema v10: `users`, `bills.created_by`.
+- Protection against guessing: 5 wrong passwords lock that username for 30 seconds.
+- Passwords are stored only as salted scrypt hashes, and the recovery code likewise.
+- The rules are enforced in the main process: every data request (including printing and CSV export) is refused with "Please log in" when signed out or timed out, so a screen left open cannot be used.
+
+### Known limits
+- This stops people using the program, not people opening the database file: the file itself is not encrypted.
+- Every user can add, change and delete other users (no admin/staff levels, as requested).
+- Test hook: environment variable `UBS_IDLE_MS` shortens the idle time (used by the tests only).
+
 ## [0.9.6] - 2026-10-25: Windows "Ask me each time" asks for the printer in the app
 
 Applied from the user's `PRINT_FIX_CHANGES.md` (written and tested on their Windows laptop).

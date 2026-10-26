@@ -1,4 +1,7 @@
 import type {
+  AppUser,
+  AuthStatus,
+  LicenseStatus,
   Result,
   Product,
   Bill,
@@ -28,6 +31,32 @@ import type {
 } from '../shared/types'
 
 interface TypedApi {
+  auth: {
+    status: () => Promise<Result<AuthStatus>>
+    setup: (
+      username: string,
+      password: string
+    ) => Promise<Result<{ username: string; recoveryCode: string }>>
+    login: (username: string, password: string) => Promise<Result<AuthStatus>>
+    logout: () => Promise<Result<void>>
+    ping: () => Promise<Result<boolean>>
+    recover: (
+      username: string,
+      code: string,
+      newPassword: string
+    ) => Promise<Result<{ recoveryCode: string }>>
+  }
+  license: {
+    status: () => Promise<Result<LicenseStatus>>
+    activate: (key: string) => Promise<Result<LicenseStatus>>
+    check: () => Promise<Result<LicenseStatus>>
+  }
+  users: {
+    list: () => Promise<Result<AppUser[]>>
+    add: (username: string, password: string) => Promise<Result<AppUser>>
+    setPassword: (id: number, password: string) => Promise<Result<void>>
+    delete: (id: number) => Promise<Result<void>>
+  }
   settings: {
     get: () => Promise<Result<ShopSettings>>
     save: (s: ShopSettings) => Promise<Result<ShopSettings>>
