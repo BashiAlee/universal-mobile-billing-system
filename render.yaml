@@ -16,5 +16,7 @@ services:
         sync: false
       - key: SIGNING_PRIVATE_KEY_BASE64
         sync: false
+      - key: NODE_VERSION
+        value: '22'
       - key: GRACE_DAYS
         value: '7'
