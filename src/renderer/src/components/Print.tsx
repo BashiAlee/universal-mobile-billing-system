@@ -66,6 +66,7 @@ function ChoosePrinter({
   const [printers, setPrinters] = useState<{ name: string; displayName: string }[] | null>(null)
   const [chosen, setChosen] = useState('')
   const [err, setErr] = useState('')
+  const [sending, setSending] = useState(false)
   useEffect(() => {
     void window.api.print.printers().then((r) => {
       if (!r.ok) return setErr(r.error)
@@ -88,7 +89,8 @@ function ChoosePrinter({
         className="modal-card form"
         onSubmit={(e) => {
           e.preventDefault()
-          if (!chosen) return
+          if (!chosen || sending) return
+          setSending(true)
           try {
             localStorage.setItem(lastPickedKey(job), chosen)
           } catch {
@@ -128,8 +130,8 @@ function ChoosePrinter({
           <button type="button" onClick={onCancel}>
             Cancel
           </button>
-          <button type="submit" className="primary" disabled={!chosen}>
-            Print
+          <button type="submit" className="primary" disabled={!chosen || sending}>
+            {sending ? 'Printing…' : 'Print'}
           </button>
         </div>
       </form>

@@ -2,6 +2,11 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com). Versions follow SemVer.
 
+## [0.11.1] - 2026-10-26: One print at a time
+
+### Fixed
+- A slow printer let people click Print again and again, sending the same job several times. Now while a receipt or label job is being sent, every print button is disabled (Reprint shows "Printing…"; the labels Print, Print labels, Print label, Print test label, Print a test label, and Save & print bill) and any extra print request is ignored. The "Choose printer" window's Print button disables after the first click. The buttons come back when the printer has accepted the job (or the print window is closed).
+
 ## [0.11.0] - 2026-10-26: Subscription control (license server)
 
 ### Added

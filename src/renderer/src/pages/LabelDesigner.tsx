@@ -3,6 +3,7 @@ import type { LabelDesign, LabelElement, LabelElementKind, Product } from '../..
 import { useSettings } from '../lib/useSettings'
 import { LabelView, type LabelProduct } from '../components/LabelView'
 import type { PrintJob } from '../components/Print'
+import { usePrinting } from '../lib/usePrinting'
 import {
   DEFAULT_LABEL_H,
   DEFAULT_LABEL_W,
@@ -28,6 +29,7 @@ export default function LabelDesignerPage({
   onPrint: (j: PrintJob) => void
 }): React.JSX.Element {
   const { settings } = useSettings()
+  const { printing } = usePrinting()
   const [designs, setDesigns] = useState<LabelDesign[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [draft, setDraft] = useState<Draft | null>(null)
@@ -211,9 +213,10 @@ export default function LabelDesignerPage({
       <div className="toolbar">
         <h1>Label designer</h1>
         <button
+          disabled={printing}
           onClick={() => onPrint({ kind: 'labels', products: [product], copies: 1, design: view })}
         >
-          Print test label
+          {printing ? 'Printing…' : 'Print test label'}
         </button>
         <button className="primary" onClick={save}>
           Save design

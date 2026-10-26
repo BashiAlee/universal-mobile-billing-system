@@ -568,3 +568,34 @@ test('settings: printers can be chosen; printing without a printer name is refus
   const r = await page.evaluate(() => window.api.print.run({ deviceName: '' }))
   expect(r).toMatchObject({ ok: false, error: 'No printer chosen' })
 })
+
+test('print buttons are disabled while a print is in progress, so a slow printer gets the job once', async () => {
+  // A print that takes a while, like a slow printer.
+  await page.evaluate(() => {
+    const w = window as unknown as { __prints: number }
+    w.__prints = 0
+    window.print = (() =>
+      new Promise((resolve) =>
+        setTimeout(() => {
+          w.__prints++
+          resolve(undefined)
+        }, 1500)
+      )) as unknown as () => void
+  })
+  await page.getByRole('button', { name: 'Bill history' }).click()
+  const row = page.getByRole('row').filter({ hasText: 'INV-' }).first()
+  await row.getByRole('button', { name: 'Reprint' }).click()
+  const busy = page.getByRole('button', { name: 'Printing…' }).first()
+  await expect(busy).toBeDisabled()
+  await busy.click({ force: true }) // clicking again does nothing
+  await page.waitForTimeout(300)
+  await busy.click({ force: true })
+  await expect(row.getByRole('button', { name: 'Reprint' })).toBeEnabled({ timeout: 5000 })
+  expect(await page.evaluate(() => (window as unknown as { __prints: number }).__prints)).toBe(1)
+  // Put the instant stand-in back for the tests after this one.
+  await page.evaluate(() => {
+    window.print = () => {
+      ;(window as unknown as { __prints: number }).__prints++
+    }
+  })
+})

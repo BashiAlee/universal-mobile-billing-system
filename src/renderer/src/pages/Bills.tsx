@@ -3,6 +3,7 @@ import type { Bill } from '../../../shared/types'
 import { useSettings } from '../lib/useSettings'
 import { formatMoney } from '../lib/money'
 import type { PrintJob } from '../components/Print'
+import { usePrinting } from '../lib/usePrinting'
 
 export default function BillsPage({
   onPrint
@@ -10,6 +11,7 @@ export default function BillsPage({
   onPrint: (j: PrintJob) => void
 }): React.JSX.Element {
   const { settings } = useSettings()
+  const { printing } = usePrinting()
   const sym = settings?.currencySymbol ?? ''
   const [bills, setBills] = useState<Bill[]>([])
   const [search, setSearch] = useState('')
@@ -80,7 +82,9 @@ export default function BillsPage({
                   <button onClick={() => setOpen(open === b.id ? null : b.id)}>
                     {open === b.id ? 'Hide' : 'View'}
                   </button>
-                  <button onClick={() => onPrint({ kind: 'receipt', bill: b })}>Reprint</button>
+                  <button disabled={printing} onClick={() => onPrint({ kind: 'receipt', bill: b })}>
+                    {printing ? 'Printing…' : 'Reprint'}
+                  </button>
                   <button
                     className="danger"
                     aria-label={`Delete ${b.billNo}`}

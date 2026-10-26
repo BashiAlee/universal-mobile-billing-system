@@ -3,6 +3,7 @@ import type { Product, SerialUnit } from '../../../shared/types'
 import { useSettings } from '../lib/useSettings'
 import { formatMoney, parseMoney } from '../lib/money'
 import type { PrintJob } from '../components/Print'
+import { usePrinting } from '../lib/usePrinting'
 
 interface Line {
   product: Product
@@ -17,6 +18,7 @@ export default function BillingPage({
   onPrint: (j: PrintJob) => void
 }): React.JSX.Element {
   const { settings } = useSettings()
+  const { printing } = usePrinting()
   const sym = settings?.currencySymbol ?? ''
   const m = (n: number): string => formatMoney(n, sym)
   const [lines, setLines] = useState<Line[]>([])
@@ -442,7 +444,11 @@ export default function BillingPage({
           Customer (optional)
           <input value={customer} onChange={(e) => setCustomer(e.target.value)} />
         </label>
-        <button className="primary big" disabled={!lines.length || saving} onClick={checkout}>
+        <button
+          className="primary big"
+          disabled={!lines.length || saving || printing}
+          onClick={checkout}
+        >
           Save &amp; print bill
         </button>
         <button disabled={!lines.length} onClick={() => updateLines([])}>

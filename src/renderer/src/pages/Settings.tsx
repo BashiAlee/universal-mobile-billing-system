@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useSettings } from '../lib/useSettings'
 import type { ShopSettings } from '../../../shared/types'
 import type { PrintJob } from '../components/Print'
+import { usePrinting } from '../lib/usePrinting'
 
 const MAX_LOGO_BYTES = 1024 * 1024
 
@@ -11,6 +12,7 @@ export default function SettingsPage({
   onPrint: (j: PrintJob) => void
 }): React.JSX.Element {
   const { settings, reload } = useSettings()
+  const { printing } = usePrinting()
   const [form, setForm] = useState<ShopSettings | null>(settings)
   const [taxPct, setTaxPct] = useState(settings ? String(settings.taxRateBp / 100) : '0')
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
@@ -163,6 +165,7 @@ export default function SettingsPage({
         </label>
         <div>
           <button
+            disabled={printing}
             onClick={() => {
               // Uses the saved settings, exactly like a real label would.
               onPrint({
@@ -178,7 +181,7 @@ export default function SettingsPage({
               })
             }}
           >
-            Print a test label
+            {printing ? 'Printing…' : 'Print a test label'}
           </button>
           <span className="muted"> Uses the saved settings (save first).</span>
         </div>

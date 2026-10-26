@@ -5,6 +5,7 @@ import { formatMoney, minorToInput, parseMoney } from '../lib/money'
 import { LabelPreview } from '../components/LabelView'
 import { standardDesign } from '../lib/labelDesign'
 import type { PrintJob } from '../components/Print'
+import { usePrinting } from '../lib/usePrinting'
 import { ImeiModal } from '../components/ImeiModal'
 
 interface Form {
@@ -59,6 +60,7 @@ export default function ProductsPage({
   onPrint: (j: PrintJob) => void
 }): React.JSX.Element {
   const { settings } = useSettings()
+  const { printing } = usePrinting()
   const sym = settings?.currencySymbol ?? ''
   const [items, setItems] = useState<Product[]>([])
   const [search, setSearch] = useState('')
@@ -214,7 +216,7 @@ export default function ProductsPage({
         </button>
         <button onClick={() => setImei({ title: 'Find a phone by IMEI' })}>IMEI lookup</button>
         <button
-          disabled={!selected.size}
+          disabled={!selected.size || printing}
           onClick={() => printLabels(items.filter((p) => selected.has(p.id)))}
         >
           Print labels ({selected.size})
@@ -520,7 +522,11 @@ export default function ProductsPage({
               <button type="button" onClick={() => setAsk(null)}>
                 Cancel
               </button>
-              <button type="submit" className="primary">
+              <button
+                type="submit"
+                className="primary"
+                disabled={ask.kind === 'labels' && printing}
+              >
                 {ask.kind === 'stock' ? 'Update stock' : 'Print'}
               </button>
             </div>
@@ -570,6 +576,7 @@ export default function ProductsPage({
               <button onClick={() => setQrFor(null)}>Close</button>
               <button
                 className="primary"
+                disabled={printing}
                 onClick={() => {
                   printLabels([qrFor], designId)
                   setQrFor(null)
