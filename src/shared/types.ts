@@ -73,6 +73,8 @@ export interface BillItem {
   serial: string | null
   /** Second IMEI of a dual-SIM phone, if it has one. */
   serial2: string | null
+  /** How many of these were already returned by the customer. */
+  returnedQty: number
 }
 
 export interface Bill {
@@ -89,6 +91,8 @@ export interface Bill {
   tenderedMinor: number
   /** Username of the person who made the bill; empty for bills from before logins. */
   createdBy: string
+  /** Total refunded to the customer for returns against this bill. */
+  refundedMinor: number
   items: BillItem[]
 }
 
@@ -277,9 +281,14 @@ export interface Report {
   bills: number
   grossSalesMinor: number
   discountMinor: number
+  /** Gross minus discount minus returns. */
   netSalesMinor: number
+  /** Value (before tax) of goods customers returned in the range; already taken off netSalesMinor. */
+  returnsMinor: number
+  returnsCount: number
   taxMinor: number
   totalBilledMinor: number
+  /** Cost of goods sold, minus the cost of returned goods that went back into stock. */
   costMinor: number
   profitMinor: number
   /** Billed totals by payment method (tax included). */
@@ -316,8 +325,21 @@ export interface DayBook {
   /** The discount given on each bill of the day that had one. */
   billDiscounts: { billNo: string; discountMinor: number }[]
   bills: number
-  /** Sales after bill discounts, before tax. */
+  /** Sales after bill discounts and returns, before tax. */
   salesMinor: number
+  /** Returns made on this day (their value is already taken off salesMinor). */
+  returns: {
+    returnNo: string
+    billNo: string
+    netMinor: number
+    refundMinor: number
+    method: string
+    /** Cost of the goods that went back into stock. */
+    restockedCostMinor: number
+  }[]
+  returnsMinor: number
+  /** Money handed back to customers today (all but credit bills). */
+  refundedMinor: number
   discountMinor: number
   costMinor: number
   profitMinor: number
@@ -485,4 +507,76 @@ export interface LicenseStatus {
   daysLeft: number | null
   message: string
   licenseKey: string
+}
+
+/** What a backup file contains, shown before it replaces the current data. */
+export interface BackupSummary {
+  file: string
+  shopName: string
+  products: number
+  bills: number
+  users: number
+  lastBillAt: string | null
+  /** When the backup file was written. */
+  savedAt: string
+}
+
+export interface BackupInfo {
+  /** Folder that "Back up now" writes to; empty until chosen. */
+  folder: string
+  lastFile: string
+  lastAt: string
+}
+
+export type RefundMethod = 'cash' | 'card' | 'mobile' | 'credit' | 'exchange'
+
+export interface ReturnLineInput {
+  billItemId: number
+  qty: number
+}
+
+export interface ReturnInput {
+  billId: number
+  items: ReturnLineInput[]
+  refundMethod: RefundMethod
+  reason?: string
+  /** Put the goods back in stock (default). False for damaged goods that are thrown away. */
+  restock?: boolean
+}
+
+export interface ReturnLine {
+  billItemId: number
+  name: string
+  code: string
+  serial: string | null
+  qty: number
+  unitPriceMinor: number
+  /** Value before tax, after this line's share of the bill discount. */
+  netMinor: number
+  taxMinor: number
+  refundMinor: number
+  unitCostMinor: number
+}
+
+export interface ReturnQuote {
+  lines: ReturnLine[]
+  netMinor: number
+  taxMinor: number
+  refundMinor: number
+}
+
+export interface ReturnRecord {
+  id: number
+  returnNo: string
+  billId: number
+  billNo: string
+  createdAt: string
+  netMinor: number
+  taxMinor: number
+  refundMinor: number
+  refundMethod: RefundMethod
+  restocked: boolean
+  reason: string
+  createdBy: string
+  items: ReturnLine[]
 }

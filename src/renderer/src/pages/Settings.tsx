@@ -3,6 +3,7 @@ import { useSettings } from '../lib/useSettings'
 import type { ShopSettings } from '../../../shared/types'
 import type { PrintJob } from '../components/Print'
 import { usePrinting } from '../lib/usePrinting'
+import { BackupCard } from '../components/BackupPanel'
 import type { LicenseStatus } from '../../../shared/types'
 
 const MAX_LOGO_BYTES = 1024 * 1024
@@ -98,6 +99,7 @@ export default function SettingsPage({
           </button>
         </div>
       )}
+      <BackupCard />
       <div className="form">
         <label>
           Shop name

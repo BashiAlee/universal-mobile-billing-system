@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { AuthStatus } from '../../../shared/types'
 import { AuthContext } from '../lib/useAuth'
+import { RestorePanel } from './BackupPanel'
 
 type View = 'login' | 'recover' | 'code'
 
@@ -206,6 +207,11 @@ function SetupForm({ onDone }: { onDone: (code: string) => void }): React.JSX.El
       <button type="submit" className="primary big">
         Create account
       </button>
+      <hr style={{ border: 0, borderTop: '1px solid var(--line)', width: '100%' }} />
+      <p className="muted" style={{ margin: 0 }}>
+        Moving from another computer? Restore your backup instead of creating a new account.
+      </p>
+      <RestorePanel />
     </form>
   )
 }

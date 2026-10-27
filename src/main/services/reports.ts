@@ -1,5 +1,6 @@
 import type { Db } from '../db/database'
 import type { PeriodRow, Report, ReportRange } from '../../shared/types'
+import { returnTotals } from './returns'
 
 /** Local-midnight start of a YYYY-MM-DD date as an ISO instant, or throws. */
 function startOf(date: string): Date {
@@ -32,13 +33,38 @@ function periodRows(db: Db, fmt: '%Y-%m-%d' | '%Y-%m', lo: string, hi: string): 
        ${BILL_BASE} GROUP BY p ORDER BY p`
     )
     .all(lo, hi) as unknown as { p: string; bills: number; net: number; cost: number }[]
-  return rows.map((r) => ({
-    period: r.p,
-    bills: r.bills,
-    netSalesMinor: r.net,
-    costMinor: r.cost,
-    profitMinor: r.net - r.cost
-  }))
+  // Returns reduce the sales (and, when the goods go back into stock, the cost) of the day they were made.
+  const rets = db
+    .prepare(
+      `SELECT strftime('${fmt}', created_at, 'localtime') AS p, SUM(net_minor) AS net,
+              SUM(restocked_cost_minor) AS cost
+       FROM returns WHERE created_at >= ? AND created_at < ? GROUP BY p`
+    )
+    .all(lo, hi) as unknown as { p: string; net: number; cost: number }[]
+  const byPeriod = new Map<string, PeriodRow>()
+  for (const r of rows)
+    byPeriod.set(r.p, {
+      period: r.p,
+      bills: r.bills,
+      netSalesMinor: r.net,
+      costMinor: r.cost,
+      profitMinor: 0
+    })
+  for (const r of rets) {
+    const row = byPeriod.get(r.p) ?? {
+      period: r.p,
+      bills: 0,
+      netSalesMinor: 0,
+      costMinor: 0,
+      profitMinor: 0
+    }
+    row.netSalesMinor -= r.net
+    row.costMinor -= r.cost
+    byPeriod.set(r.p, row)
+  }
+  return [...byPeriod.values()]
+    .sort((x, y) => x.period.localeCompare(y.period))
+    .map((r) => ({ ...r, profitMinor: r.netSalesMinor - r.costMinor }))
 }
 
 /**
@@ -110,17 +136,21 @@ export function getReport(db: Db, range: ReportRange): Report {
       .all(lo, hi) as unknown as { name: string; qty: number; sales: number; profit: number }[]
   ).map((r) => ({ name: r.name, qty: r.qty, salesMinor: r.sales, profitMinor: r.profit }))
 
-  const net = a.gross - a.discount
+  const ret = returnTotals(db, lo, hi)
+  const net = a.gross - a.discount - ret.netMinor
+  const cost = a.cost - ret.restockedCostMinor
   return {
     range,
     bills: a.bills,
     grossSalesMinor: a.gross,
     discountMinor: a.discount,
     netSalesMinor: net,
+    returnsMinor: ret.netMinor,
+    returnsCount: ret.count,
     taxMinor: a.tax,
     totalBilledMinor: a.total,
-    costMinor: a.cost,
-    profitMinor: net - a.cost,
+    costMinor: cost,
+    profitMinor: net - cost,
     byPayment,
     supplierSpendMinor: spend.s,
     stockCostValueMinor: stock.cost,

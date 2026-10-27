@@ -15,6 +15,18 @@ const api = {
     recover: (username: string, code: string, newPassword: string) =>
       call('auth:recover', username, code, newPassword)
   },
+  returns: {
+    quote: (input: unknown) => call('returns:quote', input),
+    create: (input: unknown) => call('returns:create', input),
+    list: (search?: string) => call('returns:list', search)
+  },
+  backup: {
+    info: () => call('backup:info'),
+    chooseFolder: () => call('backup:chooseFolder'),
+    now: () => call('backup:now'),
+    pickRestore: () => call('backup:pickRestore'),
+    restoreNow: () => call('backup:restoreNow')
+  },
   license: {
     status: () => call('license:status'),
     activate: (key: string) => call('license:activate', key),

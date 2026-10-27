@@ -70,6 +70,7 @@ export default function ReportsPage(): React.JSX.Element {
         ['Bills', report.bills],
         ['Gross sales', money(report.grossSalesMinor)],
         ['Discounts given', money(report.discountMinor)],
+        ['Returned by customers', money(report.returnsMinor)],
         ['Net sales', money(report.netSalesMinor)],
         ['Cost of goods sold', money(report.costMinor)],
         ['Profit', money(report.profitMinor)],
@@ -251,6 +252,14 @@ export default function ReportsPage(): React.JSX.Element {
               <span>Discounts given</span>
               <span>-{m(report.discountMinor)}</span>
             </div>
+            {report.returnsMinor > 0 && (
+              <div className="row">
+                <span>
+                  Returned by customers <span className="muted">({report.returnsCount})</span>
+                </span>
+                <span>-{m(report.returnsMinor)}</span>
+              </div>
+            )}
             <div className="row">
               <strong>Net sales</strong>
               <strong>{m(report.netSalesMinor)}</strong>

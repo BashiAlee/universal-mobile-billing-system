@@ -184,8 +184,48 @@ const MIGRATIONS: string[] = [
   );
   -- Who made each bill (the username at the time; blank for bills made before logins existed).
   ALTER TABLE bills ADD COLUMN created_by TEXT NOT NULL DEFAULT '';
+  `,
+  `
+  -- Customer returns and exchanges. A return refunds part or all of a bill without deleting it.
+  -- Amounts are fixed when the return is made: net = value without tax, refund = what goes back to the customer.
+  CREATE TABLE returns (
+    id INTEGER PRIMARY KEY,
+    return_no TEXT NOT NULL UNIQUE,
+    bill_id INTEGER NOT NULL REFERENCES bills(id),
+    created_at TEXT NOT NULL,
+    net_minor INTEGER NOT NULL,
+    tax_minor INTEGER NOT NULL,
+    refund_minor INTEGER NOT NULL,
+    refund_method TEXT NOT NULL CHECK (refund_method IN ('cash', 'card', 'mobile', 'credit', 'exchange')),
+    restocked INTEGER NOT NULL,
+    restocked_cost_minor INTEGER NOT NULL,
+    reason TEXT NOT NULL DEFAULT '',
+    created_by TEXT NOT NULL DEFAULT ''
+  );
+  CREATE INDEX idx_returns_bill ON returns(bill_id);
+  CREATE INDEX idx_returns_created ON returns(created_at);
+  CREATE TABLE return_items (
+    id INTEGER PRIMARY KEY,
+    return_id INTEGER NOT NULL REFERENCES returns(id),
+    bill_item_id INTEGER NOT NULL REFERENCES bill_items(id),
+    product_id INTEGER REFERENCES products(id),
+    code TEXT NOT NULL,
+    name TEXT NOT NULL,
+    serial TEXT,
+    serial2 TEXT,
+    qty INTEGER NOT NULL CHECK (qty > 0),
+    unit_price_minor INTEGER NOT NULL,
+    net_minor INTEGER NOT NULL,
+    tax_minor INTEGER NOT NULL,
+    refund_minor INTEGER NOT NULL,
+    unit_cost_minor INTEGER NOT NULL
+  );
+  CREATE INDEX idx_return_items_bill_item ON return_items(bill_item_id);
   `
 ]
+
+/** The schema version this program creates and understands. */
+export const SCHEMA_VERSION = MIGRATIONS.length
 
 export function openDatabase(path: string): Db {
   const db = new DatabaseSync(path)

@@ -29,19 +29,27 @@ function carriedIn(db: Db, day: string): number {
   const spent = db
     .prepare('SELECT day, SUM(amount_minor) AS v FROM expenses WHERE day < ? GROUP BY day')
     .all(day) as unknown as Sums
+  const refunded = db
+    .prepare(
+      `SELECT ${LOCAL_DAY} AS day, SUM(refund_minor) AS v FROM returns
+       WHERE refund_method != 'credit' GROUP BY day HAVING day < ?`
+    )
+    .all(day) as unknown as Sums
   const manual = db
     .prepare(
       'SELECT day, opening_minor AS v FROM day_book WHERE opening_minor IS NOT NULL AND day < ?'
     )
     .all(day) as unknown as Sums
 
-  const days = new Map<string, { recv: number; exp: number; open: number | null }>()
-  const at = (d: string): { recv: number; exp: number; open: number | null } => {
+  type DayAcc = { recv: number; exp: number; open: number | null }
+  const days = new Map<string, DayAcc>()
+  const at = (d: string): DayAcc => {
     let e = days.get(d)
     if (!e) days.set(d, (e = { recv: 0, exp: 0, open: null }))
     return e
   }
   for (const r of received) at(r.day).recv = r.v
+  for (const r of refunded) at(r.day).recv -= r.v // money handed back is money out
   for (const r of spent) at(r.day).exp = r.v
   for (const r of manual) at(r.day).open = r.v
   let running = 0
@@ -122,14 +130,49 @@ export function getDayBook(db: Db, day: string): DayBook {
   const openingManual = row?.opening_minor != null
   const openingMinor = openingManual ? (row!.opening_minor as number) : carriedIn(db, day)
 
-  const costMinor = lines.reduce((s, l) => s + l.costMinor, 0)
-  const profitMinor = a.sales - costMinor
+  const returns = (
+    db
+      .prepare(
+        `SELECT r.return_no AS returnNo, b.bill_no AS billNo, r.net_minor AS netMinor,
+                r.refund_minor AS refundMinor, r.refund_method AS method,
+                r.restocked_cost_minor AS restockedCostMinor
+         FROM returns r JOIN bills b ON b.id = r.bill_id
+         WHERE strftime('%Y-%m-%d', r.created_at, 'localtime') = ? ORDER BY r.id`
+      )
+      .all(day) as unknown as {
+      returnNo: string
+      billNo: string
+      netMinor: number
+      refundMinor: number
+      method: string
+      restockedCostMinor: number
+    }[]
+  ).map((r) => ({ ...r }))
+  const returnsMinor = returns.reduce((s, r) => s + r.netMinor, 0)
+  const refundedMinor = returns
+    .filter((r) => r.method !== 'credit')
+    .reduce((s, r) => s + r.refundMinor, 0)
+  const salesMinor = a.sales - returnsMinor
+  const costMinor =
+    lines.reduce((s, l) => s + l.costMinor, 0) -
+    returns.reduce((s, r) => s + r.restockedCostMinor, 0)
+  const profitMinor = salesMinor - costMinor
   return {
     day,
     lines,
     billDiscounts: billDiscounts.map((r) => ({ ...r })),
     bills: a.bills,
-    salesMinor: a.sales,
+    salesMinor,
+    returns: returns.map((r) => ({
+      returnNo: r.returnNo,
+      billNo: r.billNo,
+      netMinor: r.netMinor,
+      refundMinor: r.refundMinor,
+      method: r.method,
+      restockedCostMinor: r.restockedCostMinor
+    })),
+    returnsMinor,
+    refundedMinor,
     discountMinor: a.discount,
     costMinor,
     profitMinor,
@@ -141,7 +184,7 @@ export function getDayBook(db: Db, day: string): DayBook {
     supplierSpendMinor: supplier.s,
     openingMinor,
     openingManual,
-    closingMinor: openingMinor + a.received - expensesMinor,
+    closingMinor: openingMinor + a.received - refundedMinor - expensesMinor,
     notes: row?.notes ?? ''
   }
 }

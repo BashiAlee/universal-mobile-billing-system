@@ -599,3 +599,57 @@ test('print buttons are disabled while a print is in progress, so a slow printer
     }
   })
 })
+
+test('customer return: refund part of a bill, stock goes back, the day book shows it; it cannot be returned twice', async () => {
+  // A fresh product and bill, so the numbers are easy to read.
+  await page.getByRole('button', { name: 'Products & stock' }).click()
+  await page.getByRole('button', { name: '+ Add product' }).click()
+  const f = page.getByRole('dialog', { name: 'Product form' })
+  await f.getByLabel('Name', { exact: true }).fill('Return test cable')
+  await f.getByLabel('Selling price').fill('300')
+  await f.getByLabel('Cost price (optional)').fill('100')
+  await f.getByLabel('Opening stock').fill('10')
+  await f.getByRole('button', { name: 'Save' }).click()
+  await page.getByRole('button', { name: 'New bill' }).click()
+  const scan = page.getByLabel('Scan or search product')
+  await scan.fill('Return test cable')
+  await scan.press('Enter')
+  await page.getByRole('button', { name: 'Increase' }).click()
+  await page.getByRole('button', { name: 'Save & print bill' }).click()
+  await expect(page.getByRole('status')).toContainText('Saved INV-')
+
+  await page.getByRole('button', { name: 'Bill history' }).click()
+  const row = page.getByRole('row').filter({ hasText: 'INV-' }).first()
+  const billNo = (await row.getByRole('cell').first().innerText()).trim()
+  await row.getByRole('button', { name: `Return items from ${billNo}` }).click()
+  const dlg = page.getByRole('dialog', { name: 'Return items' })
+  await dlg.getByLabel('Return quantity of Return test cable').fill('1')
+  // 300.00 for the item, plus its share of any tax set by earlier tests.
+  await expect(dlg.getByLabel('Refund amount')).toHaveText(/Rs 3\d\d\.00/)
+  const refundText = (await dlg.getByLabel('Refund amount').innerText()).replace('Rs ', '')
+  await dlg.getByLabel('Reason (optional)').fill('wrong cable')
+  await dlg.getByRole('button', { name: 'Save return' }).click()
+  await expect(page.getByRole('status')).toContainText('saved: refund')
+  await expect(page.getByRole('status')).toContainText(`${refundText} by`)
+  await expect(row).toContainText('refunded')
+  await expect(page.getByRole('row', { name: /RET-/ }).first()).toContainText('wrong cable')
+
+  // 1 of 2 came back, so only 1 more can be returned.
+  await row.getByRole('button', { name: `Return items from ${billNo}` }).click()
+  await dlg.getByLabel('Return quantity of Return test cable').fill('5')
+  await expect(dlg.getByLabel('Return quantity of Return test cable')).toHaveValue('1') // limited to what is left
+  await dlg.getByRole('button', { name: 'Cancel' }).click()
+
+  await page.getByRole('button', { name: 'Products & stock' }).click()
+  await expect(page.getByRole('row', { name: /Return test cable/ })).toContainText('9') // 10 - 2 sold + 1 back
+
+  await page.getByRole('button', { name: 'Day book' }).click()
+  await expect(page.getByRole('row', { name: /Return from INV-/ }).first()).toBeVisible()
+  await expect(page.getByText('Money handed back to customers', { exact: true })).toBeVisible()
+
+  // A bill with returns cannot be deleted.
+  await page.getByRole('button', { name: 'Bill history' }).click()
+  page.once('dialog', (d) => void d.accept())
+  await row.getByRole('button', { name: `Delete ${billNo}` }).click()
+  await expect(page.getByRole('status')).toContainText('has returns')
+})

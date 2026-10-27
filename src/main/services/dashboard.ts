@@ -2,6 +2,7 @@ import type { Db } from '../db/database'
 import type { Dashboard, ReportRange } from '../../shared/types'
 import { getReport } from './reports'
 import { listParties } from './parties'
+import { returnTotals } from './returns'
 
 const ymd = (d: Date): string =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -89,9 +90,10 @@ export function getDashboard(db: Db, range: ReportRange): Dashboard {
     },
     expensesMinor: expensesIn(db, range.from, range.to),
     expensesByTitle,
-    receivedMinor: report.byPayment
-      .filter((p) => p.method !== 'credit')
-      .reduce((s, p) => s + p.totalMinor, 0),
+    // Money in: what bills brought in (credit bills excluded) minus what was handed back for returns.
+    receivedMinor:
+      report.byPayment.filter((p) => p.method !== 'credit').reduce((s, p) => s + p.totalMinor, 0) -
+      returnTotals(db, lo, hi).paidOutMinor,
     series: {
       sales: days.map((d) => daily.get(d)?.netSalesMinor ?? 0),
       profit: days.map((d) => daily.get(d)?.profitMinor ?? 0),

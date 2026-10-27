@@ -2,6 +2,25 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com). Versions follow SemVer.
 
+## [0.12.0] - 2026-10-27: Backup and restore; customer returns and exchanges
+
+### Added: backup and restore
+- **Settings > Backup and restore**: **Back up now** writes one complete, consistent copy of all data (`billing-backup-YYYY-MM-DD_HHMM.db`) to the remembered folder (a USB drive or any folder; **Choose backup folder…** sets it, asked the first time). Shows the folder and the time of the last backup. Never overwrites an earlier file. Uses `VACUUM INTO`, so it works while the program is running.
+- **Restore from a backup…**: pick a file, see what is in it (products, bills, accounts, dates), confirm; a safety copy of the current data is saved first (`backups/before-restore-…db` in the data folder), the database file is replaced and the program restarts. Refuses files that are not backups, damaged files, and backups from a newer version. Older backups are upgraded when opened.
+- Restore is also on the **Create your account** screen, for moving to a new computer (only while no accounts exist). Backups contain everything, including the accounts' password hashes: keep them private.
+- Services `backup.ts`; IPC `backup:info/chooseFolder/now/pickRestore/restoreNow`; settings keys `backupFolder`, `lastBackupAt`, `lastBackupFile`.
+
+### Added: returns and exchanges
+- **Bill history > Return**: choose how many of each item come back (IMEI phones are single units), how the customer is repaid (cash, card, mobile wallet, **exchange**, or "no money handed back" for credit bills), whether the goods go back into stock (untick for damaged goods) and a reason. Each item takes its share of the bill's discount and tax, so the refund equals what the customer paid for those items (shown before saving). Partial and repeated returns are allowed up to the quantity sold. A **Returns** list sits under the bills; bills show "refunded …" and "(returned n)".
+- Returned goods go back into stock (movement reason `return`); a returned phone becomes in-stock again and can be sold to someone else, and the old bill still shows its IMEI. Bills that have returns cannot be deleted.
+- **Numbers**: returns reduce sales on the day they are made, and profit by the refunded value (minus the cost of goods that went back to stock, so a thrown-away item is a loss). Reports show "Returned by customers" (screen and CSV); the Day book lists each return in the sales table, shows "Money handed back to customers" and takes cash/card/mobile/exchange refunds out of the remaining balance (credit returns move no money); the Dashboard's money-in is reduced by refunds.
+- **Exchange**: record the return with "Exchange", then make a normal new bill for the replacement; the Day book counts the exchange refund as money handed back, so only the difference is left in the balance.
+- Schema v11: `returns`, `return_items`. IPC `returns:quote/create/list`; `services/returns.ts`.
+
+### Limits
+- A return cannot be undone or edited after saving. The return has no printed slip. A thrown-away phone stays recorded as sold to the customer.
+- Backups are manual (button); there is no automatic scheduled backup yet.
+
 ## [0.11.4] - 2026-10-27: Automatic logout after 5 hours
 
 - The automatic sign-out after no mouse, keyboard or touch use is now **5 hours** (was 10 minutes). Constant `IDLE_MS` in `src/main/session.ts`. Closing the program still signs everyone out. Tests use `UBS_IDLE_MS` to shorten it.

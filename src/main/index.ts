@@ -61,10 +61,9 @@ app.whenReady().then(() => {
   })
 
   // Data lives in the OS per-user app-data folder, so reinstalling/updating the app never touches it.
-  const db = openDatabase(
-    join(process.env['UBS_DATA_DIR'] ?? app.getPath('userData'), 'billing.db')
-  )
-  registerIpc(db)
+  const dbPath = join(process.env['UBS_DATA_DIR'] ?? app.getPath('userData'), 'billing.db')
+  const db = openDatabase(dbPath)
+  registerIpc(db, dbPath)
   app.on('before-quit', () => db.close())
 
   createWindow()

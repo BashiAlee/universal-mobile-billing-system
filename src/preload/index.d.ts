@@ -1,6 +1,11 @@
 import type {
   AppUser,
   AuthStatus,
+  BackupInfo,
+  ReturnInput,
+  ReturnQuote,
+  ReturnRecord,
+  BackupSummary,
   LicenseStatus,
   Result,
   Product,
@@ -45,6 +50,18 @@ interface TypedApi {
       code: string,
       newPassword: string
     ) => Promise<Result<{ recoveryCode: string }>>
+  }
+  returns: {
+    quote: (input: ReturnInput) => Promise<Result<ReturnQuote>>
+    create: (input: ReturnInput) => Promise<Result<ReturnRecord>>
+    list: (search?: string) => Promise<Result<ReturnRecord[]>>
+  }
+  backup: {
+    info: () => Promise<Result<BackupInfo>>
+    chooseFolder: () => Promise<Result<BackupInfo>>
+    now: () => Promise<Result<{ info: BackupInfo; path: string }>>
+    pickRestore: () => Promise<Result<BackupSummary | null>>
+    restoreNow: () => Promise<Result<void>>
   }
   license: {
     status: () => Promise<Result<LicenseStatus>>

@@ -186,8 +186,12 @@ function hydrate(db: Db, r: BillRow): Bill {
   const items = (
     db
       .prepare(
-        `SELECT bi.*, (SELECT serial FROM serial_units WHERE bill_item_id = bi.id) AS serial,
-                (SELECT serial2 FROM serial_units WHERE bill_item_id = bi.id) AS serial2
+        `SELECT bi.*,
+                COALESCE((SELECT serial FROM serial_units WHERE bill_item_id = bi.id),
+                         (SELECT serial FROM return_items WHERE bill_item_id = bi.id AND serial IS NOT NULL LIMIT 1)) AS serial,
+                COALESCE((SELECT serial2 FROM serial_units WHERE bill_item_id = bi.id),
+                         (SELECT serial2 FROM return_items WHERE bill_item_id = bi.id AND serial2 IS NOT NULL LIMIT 1)) AS serial2,
+                (SELECT COALESCE(SUM(qty), 0) FROM return_items WHERE bill_item_id = bi.id) AS returned_qty
          FROM bill_items bi WHERE bi.bill_id = ? ORDER BY bi.id`
       )
       .all(r.id) as unknown as {
@@ -200,6 +204,7 @@ function hydrate(db: Db, r: BillRow): Bill {
       line_total_minor: number
       serial: string | null
       serial2: string | null
+      returned_qty: number
     }[]
   ).map((i): BillItem => ({
     id: i.id,
@@ -210,7 +215,8 @@ function hydrate(db: Db, r: BillRow): Bill {
     qty: i.qty,
     lineTotalMinor: i.line_total_minor,
     serial: i.serial,
-    serial2: i.serial2
+    serial2: i.serial2,
+    returnedQty: i.returned_qty
   }))
   return {
     id: r.id,
@@ -224,6 +230,11 @@ function hydrate(db: Db, r: BillRow): Bill {
     customerName: r.customer_name,
     tenderedMinor: r.tendered_minor,
     createdBy: r.created_by,
+    refundedMinor: (
+      db
+        .prepare('SELECT COALESCE(SUM(refund_minor), 0) AS n FROM returns WHERE bill_id = ?')
+        .get(r.id) as { n: number }
+    ).n,
     items
   }
 }
@@ -255,6 +266,8 @@ export function deleteBill(db: Db, id: number): void {
   transaction(db, () => {
     const bill = getBill(db, id)
     if (!bill) throw new Error('Bill not found')
+    if (bill.refundedMinor > 0 || bill.items.some((i) => i.returnedQty > 0))
+      throw new Error('This bill has returns, so it cannot be deleted')
     const now = new Date().toISOString()
     for (const item of bill.items) {
       db.prepare(

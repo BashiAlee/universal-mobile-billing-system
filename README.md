@@ -4,7 +4,7 @@ Offline desktop app for small shops: manage products and stock, generate a QR co
 
 - **Target platform:** Windows (first release). Code is cross-platform Electron, but only Windows is a goal for now.
 - **Data:** stored locally in a SQLite file per installation. No internet or server needed.
-- **Status:** working version v0.9.0 (QA-audited, see [docs/QA_REPORT.md](docs/QA_REPORT.md)). See [docs/TASKS.md](docs/TASKS.md) for what is done and pending.
+- **Status:** working version v0.12.0 (QA-audited, see [docs/QA_REPORT.md](docs/QA_REPORT.md)). See [docs/TASKS.md](docs/TASKS.md) for what is done and pending.
 
 ## Features (v0.1.0)
 
@@ -20,6 +20,8 @@ Offline desktop app for small shops: manage products and stock, generate a QR co
 | Receipt in the supplied style (dashed sections, TOTAL AMOUNT, CASH, CHANGE, THANK YOU, bill barcode), bill history, reprint | Done. Layout checked on rendered output; **not yet on a real printer** |
 | Cash received and change on the billing screen | Done, tested |
 | Product details (brand, model, RAM, storage, color) and IMEI tracking for phones: bought, sold, on the receipt, lookup | Done, tested. Not yet checked by eye or with a real scanner |
+| Backup and restore (one click to a USB drive or folder; restore, also on a new computer) | Done, tested. Not tried on a Windows PC or real USB drive |
+| Customer returns and exchanges (partial, stock back, refund method, reports/day book) | Done, tested |
 | Parties (suppliers): balance owed, payments, ledger, part-payment on purchases, new products created from a purchase | Done, tested |
 | Purchases from suppliers (e.g. 200 covers from ABC Traders for 10000): adds stock, sets cost price, history | Done, tested |
 | Quick note: just record supplier, what you bought and the cost, without touching stock | Done, tested |

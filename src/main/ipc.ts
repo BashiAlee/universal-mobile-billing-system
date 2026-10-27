@@ -1,9 +1,11 @@
-import { app, ipcMain } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain } from 'electron'
 import { appendFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { saveCsv } from './services/exportFile'
 import type { Db } from './db/database'
-import type { AuthStatus, Result } from '../shared/types'
+import type { AuthStatus, BackupInfo, BackupSummary, Result } from '../shared/types'
+import * as backup from './services/backup'
+import * as returns from './services/returns'
 import { IDLE_MS, Session } from './session'
 import * as auth from './services/auth'
 import { licenseConfig } from './license/config'
@@ -63,6 +65,8 @@ const READ_ONLY_OK = new Set([
   'labels:list',
   'bills:list',
   'bills:get',
+  'returns:list',
+  'returns:quote',
   'reports:get',
   'dashboard:get',
   'daybook:get',
@@ -75,7 +79,7 @@ const READ_ONLY_OK = new Set([
   'users:list'
 ])
 
-export function registerIpc(db: Db): void {
+export function registerIpc(db: Db, dbPath: string): void {
   const licCfg = licenseConfig()
   licenseGuard = (channel) => {
     if (!licCfg.enforced || channel.startsWith('license:') || READ_ONLY_OK.has(channel)) return
@@ -191,10 +195,106 @@ export function registerIpc(db: Db): void {
   handle('bills:list', (search?: string) => bills.listBills(db, search))
   handle('bills:delete', (id: number) => bills.deleteBill(db, id))
   handle('bills:get', (id: number) => bills.getBill(db, id))
+  handle('returns:quote', (input: Parameters<typeof returns.quoteReturn>[1]) =>
+    returns.quoteReturn(db, input)
+  )
+  handle('returns:create', (input: Parameters<typeof returns.createReturn>[1]) =>
+    returns.createReturn(db, input, session.current()?.username ?? '')
+  )
+  handle('returns:list', (search?: string) => returns.listReturns(db, search))
 
   handle('reports:get', (range: Parameters<typeof reports.getReport>[1]) =>
     reports.getReport(db, range)
   )
+
+  // ---- Backup and restore ----
+  const setting = (k: string): string =>
+    (db.prepare('SELECT value FROM settings WHERE key = ?').get(k) as { value: string } | undefined)
+      ?.value ?? ''
+  const putSetting = (k: string, v: string): void => {
+    db.prepare(
+      'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value'
+    ).run(k, v)
+  }
+  const backupInfo = (): BackupInfo => ({
+    folder: setting('backupFolder'),
+    lastFile: setting('lastBackupFile'),
+    lastAt: setting('lastBackupAt')
+  })
+  // Restoring is allowed when signed in, or on a fresh install that has no accounts yet (moving to a new computer).
+  const allowRestore = (): void => {
+    if (auth.countUsers(db) > 0) requireUser()
+  }
+  const chooseFolder = async (): Promise<string | null> => {
+    if (process.env['UBS_BACKUP_DIR']) return process.env['UBS_BACKUP_DIR']
+    const win = BrowserWindow.getFocusedWindow()
+    const opts = {
+      title: 'Choose where to keep backups (a USB drive or a folder)',
+      properties: ['openDirectory', 'createDirectory'] as ('openDirectory' | 'createDirectory')[]
+    }
+    const r = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts)
+    return r.canceled || !r.filePaths[0] ? null : r.filePaths[0]
+  }
+  handle('backup:info', backupInfo)
+  handle('backup:chooseFolder', async () => {
+    const f = await chooseFolder()
+    if (f) putSetting('backupFolder', f)
+    return backupInfo()
+  })
+  handle('backup:now', async () => {
+    let folder = setting('backupFolder')
+    if (!folder) {
+      const f = await chooseFolder()
+      if (!f) return { info: backupInfo(), path: '' }
+      folder = f
+      putSetting('backupFolder', f)
+    }
+    const r = backup.createBackup(db, join(folder, backup.backupFileName()))
+    putSetting('lastBackupFile', r.path)
+    putSetting('lastBackupAt', new Date().toISOString())
+    return { info: backupInfo(), path: r.path }
+  })
+  let pendingRestore = ''
+  ipcMain.handle('backup:pickRestore', async (): Promise<Result<BackupSummary | null>> => {
+    try {
+      allowRestore()
+      let file = process.env['UBS_RESTORE_FILE'] ?? ''
+      if (!file) {
+        const win = BrowserWindow.getFocusedWindow()
+        const opts = {
+          title: 'Choose a backup file',
+          filters: [{ name: 'Backup (.db)', extensions: ['db'] }],
+          properties: ['openFile'] as 'openFile'[]
+        }
+        const r = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts)
+        file = r.canceled ? '' : (r.filePaths[0] ?? '')
+      }
+      if (!file) return { ok: true, data: null }
+      const summary = backup.inspectBackup(file)
+      pendingRestore = file
+      return { ok: true, data: summary }
+    } catch (err) {
+      pendingRestore = ''
+      return { ok: false, error: err instanceof Error ? err.message : 'Could not read that file' }
+    }
+  })
+  ipcMain.handle('backup:restoreNow', async (): Promise<Result<void>> => {
+    try {
+      allowRestore()
+      if (!pendingRestore) throw new Error('Choose a backup file first')
+      backup.inspectBackup(pendingRestore) // checked again right before use
+      // Keep a copy of the current data first, in case the wrong backup was chosen.
+      const dir = process.env['UBS_DATA_DIR'] ?? app.getPath('userData')
+      backup.createBackup(db, backup.safetyCopyPath(dir))
+      db.close()
+      backup.restoreFile(dbPath, pendingRestore)
+      if (process.env['UBS_NO_RELAUNCH'] !== '1') app.relaunch()
+      app.exit(0)
+      return { ok: true, data: undefined }
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : 'Restore failed' }
+    }
+  })
 
   // Printing needs the window that asked, so these two use the IPC event directly.
   ipcMain.handle('print:printers', async (e): Promise<Result<printing.PrinterOption[]>> => {

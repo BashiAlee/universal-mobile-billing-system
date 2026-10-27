@@ -115,13 +115,30 @@ export default function DayBookPage(): React.JSX.Element {
         '',
         '',
         '',
-        money(book.costMinor),
+        money(book.lines.reduce((s, l) => s + l.costMinor, 0)),
         money(book.lines.reduce((s, l) => s + l.saleMinor, 0))
       ],
       ...(book.discountMinor > 0
+        ? [['Discount given on bills', '', '', '', '', `-${money(book.discountMinor)}`]]
+        : []),
+      ...book.returns.map((r): Cell[] => [
+        '',
+        r.returnNo,
+        `Return from ${r.billNo} (${r.method})`,
+        '',
+        `-${money(r.restockedCostMinor)}`,
+        `-${money(r.netMinor)}`
+      ]),
+      ...(book.discountMinor > 0 || book.returns.length
         ? [
-            ['Discount given on bills', '', '', '', '', `-${money(book.discountMinor)}`],
-            ['Sale after discount', '', '', '', '', money(book.salesMinor)]
+            [
+              book.returns.length ? 'Sale after discount and returns' : 'Sale after discount',
+              '',
+              '',
+              '',
+              money(book.costMinor),
+              money(book.salesMinor)
+            ]
           ]
         : []),
       [],
@@ -132,6 +149,8 @@ export default function DayBookPage(): React.JSX.Element {
       ['Opening balance', money(book.openingMinor)],
       ['Sale', money(book.salesMinor)],
       ['Discount given', money(book.discountMinor)],
+      ['Returned by customers (taken off the sale)', money(book.returnsMinor)],
+      ['Refunded to customers', money(book.refundedMinor)],
       ['Profit', money(book.profitMinor)],
       ['Shop expense', money(book.expensesMinor)],
       ['Profit after expenses', money(book.netProfitMinor)],
@@ -261,23 +280,48 @@ export default function DayBookPage(): React.JSX.Element {
                 {book.lines.length > 0 && (
                   <tr>
                     <td colSpan={4}>{bold('Total')}</td>
-                    <td className="num">{bold(m(book.costMinor))}</td>
+                    <td className="num">
+                      {bold(m(book.lines.reduce((s, l) => s + l.costMinor, 0)))}
+                    </td>
                     <td className="num">
                       {bold(m(book.lines.reduce((s, l) => s + l.saleMinor, 0)))}
                     </td>
                   </tr>
                 )}
                 {book.lines.length > 0 && book.discountMinor > 0 && (
-                  <>
-                    <tr>
-                      <td colSpan={5}>Discount given on bills</td>
-                      <td className="num err">-{m(book.discountMinor)}</td>
-                    </tr>
-                    <tr>
-                      <td colSpan={5}>{bold('Sale after discount')}</td>
-                      <td className="num">{bold(m(book.salesMinor))}</td>
-                    </tr>
-                  </>
+                  <tr>
+                    <td colSpan={5}>Discount given on bills</td>
+                    <td className="num err">-{m(book.discountMinor)}</td>
+                  </tr>
+                )}
+                {book.returns.map((r) => (
+                  <tr key={r.returnNo}>
+                    <td></td>
+                    <td>
+                      <code>{r.returnNo}</code>
+                    </td>
+                    <td>
+                      Return from {r.billNo} <span className="muted">({r.method})</span>
+                    </td>
+                    <td></td>
+                    <td className="num">
+                      {r.restockedCostMinor > 0 ? `-${m(r.restockedCostMinor)}` : ''}
+                    </td>
+                    <td className="num err">-{m(r.netMinor)}</td>
+                  </tr>
+                ))}
+                {(book.discountMinor > 0 || book.returns.length > 0) && (
+                  <tr>
+                    <td colSpan={4}>
+                      {bold(
+                        book.returns.length
+                          ? 'Sale after discount and returns'
+                          : 'Sale after discount'
+                      )}
+                    </td>
+                    <td className="num">{bold(m(book.costMinor))}</td>
+                    <td className="num">{bold(m(book.salesMinor))}</td>
+                  </tr>
                 )}
               </tbody>
             </table>
@@ -363,10 +407,22 @@ export default function DayBookPage(): React.JSX.Element {
               <span>Profit after expenses</span>
               <span className={book.netProfitMinor < 0 ? 'err' : ''}>{m(book.netProfitMinor)}</span>
             </div>
+            {book.returnsMinor > 0 && (
+              <div className="row">
+                <span>Returned by customers (already taken off the sale)</span>
+                <span>-{m(book.returnsMinor)}</span>
+              </div>
+            )}
             <div className="row">
               <span>Money received from bills</span>
               <span>{m(book.receivedMinor)}</span>
             </div>
+            {book.refundedMinor > 0 && (
+              <div className="row">
+                <span>Money handed back to customers</span>
+                <span>-{m(book.refundedMinor)}</span>
+              </div>
+            )}
             {book.creditMinor > 0 && (
               <div className="row">
                 <span>On credit (not yet received)</span>
@@ -378,7 +434,8 @@ export default function DayBookPage(): React.JSX.Element {
               <span className={book.closingMinor < 0 ? 'err' : ''}>{m(book.closingMinor)}</span>
             </div>
             <p className="muted" style={{ margin: '6px 0 0' }}>
-              Remaining balance = opening balance + money received from bills − shop expenses.
+              Remaining balance = opening balance + money received from bills − money handed back to
+              customers − shop expenses.
             </p>
           </div>
 
