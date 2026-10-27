@@ -24,7 +24,7 @@ Last updated: 2026-10-23 (v0.3.0)
 - [x] QA audit and defect fixes (v0.3.1): see QA_REPORT.md.
 - [x] Label designer: drag/edit items on a 38 x 25 mm label, save named designs, pick one when printing (v0.6.0)
 - [x] Subscription control: license server + admin page + activation/suspension in the program (v0.11.0, code done; **server not deployed yet**)
-- [x] Usernames/passwords per user, Users tab, logout, auto-logout after 10 minutes, recovery code, bills show who made them (v0.10.0)
+- [x] Usernames/passwords per user, Users tab, logout, auto-logout after 5 hours without use (was 10 minutes until v0.11.4), recovery code, bills show who made them (v0.10.0)
 - [x] Delete a bill (items and phones return to stock); discount shown in the Day book (v0.9.4)
 - [x] Add phones directly (no purchase), delete a mistaken in-stock phone; supplier spend counts only money paid; Dashboard 'Money owed to parties' (v0.9.0)
 - [x] Product details (brand, model, RAM, storage, color, cover compatibility) and per-unit IMEI tracking through purchase, sale, receipt and lookup (v0.8.0)

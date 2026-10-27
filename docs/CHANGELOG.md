@@ -2,6 +2,10 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com). Versions follow SemVer.
 
+## [0.11.4] - 2026-10-27: Automatic logout after 5 hours
+
+- The automatic sign-out after no mouse, keyboard or touch use is now **5 hours** (was 10 minutes). Constant `IDLE_MS` in `src/main/session.ts`. Closing the program still signs everyone out. Tests use `UBS_IDLE_MS` to shorten it.
+
 ## [0.11.3] - 2026-10-26: Switch-offs are noticed sooner
 
 - Reported: after deleting a license in the admin page the shop could still work. By design a change only reaches a shop at its next check, and checks were every 6 hours. Now the program asks the server **every 10 minutes**, whenever the window is used again after being away (at most once a minute), and 3 seconds after start-up. A shop without internet still keeps working on its saved answer for up to 7 days (server setting `GRACE_DAYS`).

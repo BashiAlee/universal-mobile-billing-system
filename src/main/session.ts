@@ -1,6 +1,7 @@
 import type { AppUser } from '../shared/types'
 
-export const IDLE_MS = 10 * 60 * 1000
+/** Signed out after this long with no mouse, keyboard or touch use: 5 hours. */
+export const IDLE_MS = 5 * 60 * 60 * 1000
 const MAX_FAILS = 5
 const LOCK_MS = 30 * 1000
 

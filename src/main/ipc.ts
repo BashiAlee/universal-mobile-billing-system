@@ -22,7 +22,7 @@ import * as printing from './services/printing'
 
 // Nobody can read or change data until they sign in. This is enforced here in the main process,
 // so a signed-out (or timed-out) screen cannot get anything even if its code were tampered with.
-// UBS_IDLE_MS only exists so the automated tests do not have to wait ten minutes.
+// UBS_IDLE_MS only exists so the automated tests do not have to wait five hours.
 const session = new Session(Number(process.env['UBS_IDLE_MS']) || IDLE_MS)
 
 function requireUser(): { id: number; username: string } {
