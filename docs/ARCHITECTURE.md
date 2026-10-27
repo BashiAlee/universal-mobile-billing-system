@@ -60,6 +60,7 @@ docs/              project documentation
 | `products` extra columns (v8) | `category`, `brand`, `model`, `storage`, `ram`, `color`, `compatible_with` (all text, default ''), `track_serial` (0/1) |
 | `serial_units` | `id` PK, `product_id` FK, `serial` UNIQUE (upper-case), `serial2` UNIQUE when set (second IMEI of a dual-SIM phone, v9), `condition` (`new`/`used`), `cost_minor`, `purchase_id` FK, `status` (`in_stock`/`sold`), `bill_item_id` FK, `created_at`, `sold_at` (v8). `products.stock_qty` always equals the in-stock count for tracked products |
 | `settings` keys for the license (not in `ShopSettings`) | `licenseKey`, `licenseToken` (signed answer from the server), `licenseNote`, `licenseLastSeen` |
+| `bill_items.discount_minor` (v12) | discount on that line; `line_total_minor` is already net of it |
 | `returns` | `id` PK, `return_no` UNIQUE (`RET-000001`), `bill_id` FK, `created_at`, `net_minor` (value before tax, after the bill's discount share), `tax_minor`, `refund_minor`, `refund_method` (`cash`/`card`/`mobile`/`credit`/`exchange`), `restocked`, `restocked_cost_minor`, `reason`, `created_by` (v11) |
 | `return_items` | `id` PK, `return_id` FK, `bill_item_id` FK, `product_id`, `code`, `name`, `serial`, `serial2`, `qty`, `unit_price_minor`, `net_minor`, `tax_minor`, `refund_minor`, `unit_cost_minor` (v11) |
 | `users` | `id` PK, `username` UNIQUE (nocase), `password_hash` (scrypt, salted), `created_at` (v10). `bills.created_by` = username that made the bill (v10). Recovery code hash is in `settings` under `recoveryHash` |

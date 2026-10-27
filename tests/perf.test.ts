@@ -42,5 +42,5 @@ describe('performance (measured, not asserted)', () => {
     t('search bills "INV-0019"', () => {
       expect(listBills(db, 'INV-0019').length).toBeGreaterThan(0)
     })
-  })
+  }, 60_000) // it only measures; a slow machine must not make it fail
 })

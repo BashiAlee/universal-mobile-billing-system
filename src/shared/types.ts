@@ -50,6 +50,8 @@ export interface BillLineInput {
   qty: number
   /** Required for IMEI-tracked products: the IMEI of each unit sold (one per qty). */
   serials?: string[]
+  /** Discount for this item: an amount off the whole line (for all the qty), not per piece. */
+  discountMinor?: number
 }
 
 export interface BillInput {
@@ -75,6 +77,8 @@ export interface BillItem {
   serial2: string | null
   /** How many of these were already returned by the customer. */
   returnedQty: number
+  /** Discount given on this line (already taken off lineTotalMinor). */
+  discountMinor: number
 }
 
 export interface Bill {
@@ -315,7 +319,10 @@ export interface DayBookLine {
   name: string
   qty: number
   costMinor: number
+  /** Sale value of the line, already after its item discount. */
   saleMinor: number
+  /** Discount given on this item (0 when none). */
+  discountMinor: number
 }
 
 /** One local day of the shop, like the paper day book: sales lines, expenses, balance and notes. */
@@ -338,6 +345,8 @@ export interface DayBook {
     restockedCostMinor: number
   }[]
   returnsMinor: number
+  /** Discounts given on single items today (already out of the sale figures). */
+  itemDiscountsMinor: number
   /** Money handed back to customers today (all but credit bills). */
   refundedMinor: number
   discountMinor: number

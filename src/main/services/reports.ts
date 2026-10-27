@@ -136,14 +136,24 @@ export function getReport(db: Db, range: ReportRange): Report {
       .all(lo, hi) as unknown as { name: string; qty: number; sales: number; profit: number }[]
   ).map((r) => ({ name: r.name, qty: r.qty, salesMinor: r.sales, profitMinor: r.profit }))
 
+  // Discounts on single items are already out of the bill subtotals; add them back to "gross" and to "discounts"
+  // so that gross - discounts = net still adds up on screen.
+  const lineDiscounts = (
+    db
+      .prepare(
+        `SELECT COALESCE(SUM(i.discount_minor), 0) AS d FROM bill_items i JOIN bills b ON b.id = i.bill_id
+         WHERE b.created_at >= ? AND b.created_at < ?`
+      )
+      .get(lo, hi) as unknown as { d: number }
+  ).d
   const ret = returnTotals(db, lo, hi)
   const net = a.gross - a.discount - ret.netMinor
   const cost = a.cost - ret.restockedCostMinor
   return {
     range,
     bills: a.bills,
-    grossSalesMinor: a.gross,
-    discountMinor: a.discount,
+    grossSalesMinor: a.gross + lineDiscounts,
+    discountMinor: a.discount + lineDiscounts,
     netSalesMinor: net,
     returnsMinor: ret.netMinor,
     returnsCount: ret.count,

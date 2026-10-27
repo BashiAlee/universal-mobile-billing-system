@@ -653,3 +653,32 @@ test('customer return: refund part of a bill, stock goes back, the day book show
   await row.getByRole('button', { name: `Delete ${billNo}` }).click()
   await expect(page.getByRole('status')).toContainText('has returns')
 })
+
+test('discount on a single item: typed on the bill line, shown in bill history and the day book', async () => {
+  await page.getByRole('button', { name: 'New bill' }).click()
+  const scan = page.getByLabel('Scan or search product')
+  await scan.fill('Return test cable') // created by the return test: price 300.00
+  await scan.press('Enter')
+  const box = page.getByLabel('Discount on Return test cable')
+  // A discount that is not an amount, or is more than the price, stops the bill.
+  await box.fill('abc')
+  await expect(page.getByRole('button', { name: 'Save & print bill' })).toBeDisabled()
+  await box.fill('350')
+  await expect(page.getByRole('button', { name: 'Save & print bill' })).toBeDisabled()
+  await box.fill('45')
+  await expect(
+    page.locator('tr', { hasText: 'Return test cable' }).locator('td.num').last()
+  ).toContainText('255.00')
+  await page.getByRole('button', { name: 'Save & print bill' }).click()
+  await expect(page.getByRole('status')).toContainText('Saved INV-')
+
+  await page.getByRole('button', { name: 'Bill history' }).click()
+  const row = page.getByRole('row').filter({ hasText: 'INV-' }).first()
+  await row.getByRole('button', { name: 'View' }).click()
+  await expect(page.getByText('discount Rs 45.00', { exact: false }).first()).toBeVisible()
+
+  await page.getByRole('button', { name: 'Day book' }).click()
+  const line = page.getByRole('row', { name: /Return test cable/ }).last()
+  await expect(line).toContainText('-Rs 45.00')
+  await expect(line).toContainText('255.00')
+})

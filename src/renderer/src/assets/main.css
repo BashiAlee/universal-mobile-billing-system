@@ -736,3 +736,8 @@ label.inline input {
 .license-banner button {
   margin-top: 8px;
 }
+
+input.bad-input {
+  border-color: var(--danger);
+  background: #fff6f5;
+}

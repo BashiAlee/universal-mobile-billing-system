@@ -193,7 +193,14 @@ export default function BillsPage({
                             ? ` (IMEI ${i.serial}${i.serial2 ? ` / ${i.serial2}` : ''})`
                             : ''}{' '}
                           — {i.qty} × {formatMoney(i.unitPriceMinor, sym)} ={' '}
-                          {formatMoney(i.lineTotalMinor, sym)}
+                          {formatMoney(i.lineTotalMinor + i.discountMinor, sym)}
+                          {i.discountMinor > 0 && (
+                            <>
+                              {' '}
+                              − discount {formatMoney(i.discountMinor, sym)} ={' '}
+                              {formatMoney(i.lineTotalMinor, sym)}
+                            </>
+                          )}
                           {i.returnedQty > 0 && (
                             <span className="err"> (returned {i.returnedQty})</span>
                           )}

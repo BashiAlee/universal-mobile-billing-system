@@ -67,7 +67,8 @@ export function getDayBook(db: Db, day: string): DayBook {
     db
       .prepare(
         `SELECT b.bill_no AS billNo, i.name AS name, i.qty AS qty,
-                i.qty * i.unit_cost_minor AS costMinor, i.line_total_minor AS saleMinor
+                i.qty * i.unit_cost_minor AS costMinor, i.line_total_minor AS saleMinor,
+                i.discount_minor AS discountMinor
          FROM bill_items i JOIN bills b ON b.id = i.bill_id
          WHERE strftime('%Y-%m-%d', b.created_at, 'localtime') = ?
          ORDER BY b.created_at, i.id`
@@ -81,6 +82,8 @@ export function getDayBook(db: Db, day: string): DayBook {
        WHERE ${LOCAL_DAY} = ? AND discount_minor > 0 ORDER BY created_at, id`
     )
     .all(day) as unknown as DayBook['billDiscounts']
+
+  const lineDiscountsMinor = lines.reduce((s, l) => s + l.discountMinor, 0)
 
   const a = db
     .prepare(
@@ -174,6 +177,7 @@ export function getDayBook(db: Db, day: string): DayBook {
     returnsMinor,
     refundedMinor,
     discountMinor: a.discount,
+    itemDiscountsMinor: lineDiscountsMinor,
     costMinor,
     profitMinor,
     expenses,

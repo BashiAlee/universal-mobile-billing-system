@@ -96,9 +96,17 @@ export default function DayBookPage(): React.JSX.Element {
       [`${settings?.shopName ?? ''} - Day book`],
       ['Date', book.day],
       [],
-      ['No', 'Bill', 'Product', 'Qty', 'Buy', 'Sale'],
+      ['No', 'Bill', 'Product', 'Qty', 'Discount', 'Buy', 'Sale'],
       ...book.lines.flatMap((l, i): Cell[][] => {
-        const row: Cell[] = [i + 1, l.billNo, l.name, l.qty, money(l.costMinor), money(l.saleMinor)]
+        const row: Cell[] = [
+          i + 1,
+          l.billNo,
+          l.name,
+          l.qty,
+          l.discountMinor > 0 ? `-${money(l.discountMinor)}` : '',
+          money(l.costMinor),
+          money(l.saleMinor)
+        ]
         const disc =
           book.lines[i + 1]?.billNo !== l.billNo
             ? (book.billDiscounts ?? []).find((d) => d.billNo === l.billNo)
@@ -106,7 +114,15 @@ export default function DayBookPage(): React.JSX.Element {
         return disc
           ? [
               row,
-              ['', disc.billNo, 'Discount on this bill', '', '', `-${money(disc.discountMinor)}`]
+              [
+                '',
+                disc.billNo,
+                'Discount on this bill',
+                '',
+                '',
+                '',
+                `-${money(disc.discountMinor)}`
+              ]
             ]
           : [row]
       }),
@@ -115,16 +131,18 @@ export default function DayBookPage(): React.JSX.Element {
         '',
         '',
         '',
+        book.itemDiscountsMinor > 0 ? `-${money(book.itemDiscountsMinor)}` : '',
         money(book.lines.reduce((s, l) => s + l.costMinor, 0)),
         money(book.lines.reduce((s, l) => s + l.saleMinor, 0))
       ],
       ...(book.discountMinor > 0
-        ? [['Discount given on bills', '', '', '', '', `-${money(book.discountMinor)}`]]
+        ? [['Discount given on bills', '', '', '', '', '', `-${money(book.discountMinor)}`]]
         : []),
       ...book.returns.map((r): Cell[] => [
         '',
         r.returnNo,
         `Return from ${r.billNo} (${r.method})`,
+        '',
         '',
         `-${money(r.restockedCostMinor)}`,
         `-${money(r.netMinor)}`
@@ -133,6 +151,7 @@ export default function DayBookPage(): React.JSX.Element {
         ? [
             [
               book.returns.length ? 'Sale after discount and returns' : 'Sale after discount',
+              '',
               '',
               '',
               '',
@@ -148,7 +167,8 @@ export default function DayBookPage(): React.JSX.Element {
       [],
       ['Opening balance', money(book.openingMinor)],
       ['Sale', money(book.salesMinor)],
-      ['Discount given', money(book.discountMinor)],
+      ['Discount given on bills', money(book.discountMinor)],
+      ['Discount given on single items', money(book.itemDiscountsMinor)],
       ['Returned by customers (taken off the sale)', money(book.returnsMinor)],
       ['Refunded to customers', money(book.refundedMinor)],
       ['Profit', money(book.profitMinor)],
@@ -234,6 +254,7 @@ export default function DayBookPage(): React.JSX.Element {
                   <th>Bill</th>
                   <th>Product</th>
                   <th className="num">Qty</th>
+                  <th className="num">Discount</th>
                   <th className="num">Buy</th>
                   <th className="num">Sale</th>
                 </tr>
@@ -254,6 +275,9 @@ export default function DayBookPage(): React.JSX.Element {
                         </td>
                         <td>{l.name}</td>
                         <td className="num">{l.qty}</td>
+                        <td className="num err">
+                          {l.discountMinor > 0 ? `-${m(l.discountMinor)}` : ''}
+                        </td>
                         <td className="num">{m(l.costMinor)}</td>
                         <td className="num">{m(l.saleMinor)}</td>
                       </tr>
@@ -263,7 +287,7 @@ export default function DayBookPage(): React.JSX.Element {
                           <td>
                             <code>{disc.billNo}</code>
                           </td>
-                          <td colSpan={3}>Discount on this bill</td>
+                          <td colSpan={4}>Discount on this bill</td>
                           <td className="num err">-{m(disc.discountMinor)}</td>
                         </tr>
                       )}
@@ -272,7 +296,7 @@ export default function DayBookPage(): React.JSX.Element {
                 })}
                 {!book.lines.length && (
                   <tr>
-                    <td colSpan={6} className="muted center">
+                    <td colSpan={7} className="muted center">
                       No sales on this day.
                     </td>
                   </tr>
@@ -280,6 +304,9 @@ export default function DayBookPage(): React.JSX.Element {
                 {book.lines.length > 0 && (
                   <tr>
                     <td colSpan={4}>{bold('Total')}</td>
+                    <td className="num err">
+                      {book.itemDiscountsMinor > 0 ? bold(`-${m(book.itemDiscountsMinor)}`) : ''}
+                    </td>
                     <td className="num">
                       {bold(m(book.lines.reduce((s, l) => s + l.costMinor, 0)))}
                     </td>
@@ -290,7 +317,7 @@ export default function DayBookPage(): React.JSX.Element {
                 )}
                 {book.lines.length > 0 && book.discountMinor > 0 && (
                   <tr>
-                    <td colSpan={5}>Discount given on bills</td>
+                    <td colSpan={6}>Discount given on bills</td>
                     <td className="num err">-{m(book.discountMinor)}</td>
                   </tr>
                 )}
@@ -304,6 +331,7 @@ export default function DayBookPage(): React.JSX.Element {
                       Return from {r.billNo} <span className="muted">({r.method})</span>
                     </td>
                     <td></td>
+                    <td></td>
                     <td className="num">
                       {r.restockedCostMinor > 0 ? `-${m(r.restockedCostMinor)}` : ''}
                     </td>
@@ -312,7 +340,7 @@ export default function DayBookPage(): React.JSX.Element {
                 ))}
                 {(book.discountMinor > 0 || book.returns.length > 0) && (
                   <tr>
-                    <td colSpan={4}>
+                    <td colSpan={5}>
                       {bold(
                         book.returns.length
                           ? 'Sale after discount and returns'
@@ -393,7 +421,7 @@ export default function DayBookPage(): React.JSX.Element {
             </div>
             <div className="row">
               <span>Discount given (already taken off the sale)</span>
-              <span>{m(book.discountMinor)}</span>
+              <span>{m(book.discountMinor + book.itemDiscountsMinor)}</span>
             </div>
             <div className="row">
               <span>Profit</span>

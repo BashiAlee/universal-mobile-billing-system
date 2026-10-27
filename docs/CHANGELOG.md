@@ -2,6 +2,16 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com). Versions follow SemVer.
 
+## [0.13.0] - 2026-10-27: Discount on each item
+
+### Added
+- **Discount for every product on a bill**: the New bill table has a **Discount** column next to Qty. Type an amount for that item (the amount off the whole line, not per piece); the line total updates. An amount that is not valid, or is more than the item's price, turns the box red and stops the bill from being saved. The bill-level Discount box still works too.
+- It is shown everywhere: on the **receipt** (a small "Discount -X" line under the item), in **Bill history** (price − discount = total per item), in the **Day book** (a Discount column for every product, a total of item discounts, "Discount given" in the summary covering both kinds, and in the CSV), and in **Reports** ("Gross sales" and "Discounts given" include item discounts, so gross − discounts = net still adds up).
+- Schema v12: `bill_items.discount_minor`. `line_total_minor` is the price after the item discount, so sales per product, profit and every other total built from lines are automatically net. Older bills are unchanged (discount 0).
+- Returns of a discounted item refund what was really paid for it. A discount on several phones is shared between them in whole units.
+- Fixed a test that could fail on a slow machine (the 20,000-product performance check only measures; it now has a generous time limit).
+- Update for customers: no new database is needed; the program upgrades their data by itself (one new column).
+
 ## [0.12.0] - 2026-10-27: Backup and restore; customer returns and exchanges
 
 ### Added: backup and restore

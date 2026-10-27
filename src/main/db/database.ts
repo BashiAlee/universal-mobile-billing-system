@@ -221,6 +221,11 @@ const MIGRATIONS: string[] = [
     unit_cost_minor INTEGER NOT NULL
   );
   CREATE INDEX idx_return_items_bill_item ON return_items(bill_item_id);
+  `,
+  `
+  -- Discount given on one bill line (an amount for the whole line). line_total_minor is the price AFTER this discount,
+  -- so every total built from lines (sales per product, day book, reports) is automatically net of it.
+  ALTER TABLE bill_items ADD COLUMN discount_minor INTEGER NOT NULL DEFAULT 0;
   `
 ]
 

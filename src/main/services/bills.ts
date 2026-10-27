@@ -23,6 +23,7 @@ export function createBill(db: Db, input: BillInput, createdBy = ''): Bill {
   // Merge duplicate lines for the same product.
   const qtyByProduct = new Map<number, number>()
   const serialsByProduct = new Map<number, string[]>()
+  const discountByProduct = new Map<number, number>()
   for (const line of input.items) {
     if (!line || !Number.isInteger(line.productId)) throw new Error('Invalid item on the bill')
     if (!Number.isInteger(line.qty) || line.qty <= 0)
@@ -30,6 +31,13 @@ export function createBill(db: Db, input: BillInput, createdBy = ''): Bill {
     const merged = (qtyByProduct.get(line.productId) ?? 0) + line.qty
     if (merged > MAX_QTY) throw new Error('Quantity is too large')
     qtyByProduct.set(line.productId, merged)
+    const lineDiscount = line.discountMinor ?? 0
+    if (!Number.isInteger(lineDiscount) || lineDiscount < 0)
+      throw new Error('Item discount must be a whole number >= 0')
+    discountByProduct.set(
+      line.productId,
+      (discountByProduct.get(line.productId) ?? 0) + lineDiscount
+    )
     if (line.serials !== undefined) {
       const sers = normalizeSerials(line.serials)
       if (sers.length !== line.qty)
@@ -59,6 +67,8 @@ export function createBill(db: Db, input: BillInput, createdBy = ''): Bill {
       cost: number
       qty: number
       total: number
+      /** Discount on this line, already taken off `total`. */
+      discount: number
       /** Set for a tracked unit: its IMEI row id and number. */
       unitId?: number
       serial?: string
@@ -70,6 +80,10 @@ export function createBill(db: Db, input: BillInput, createdBy = ''): Bill {
       if (p.stockQty < qty)
         throw new Error(`Not enough stock for ${p.name} (have ${p.stockQty}, need ${qty})`)
       const sers = serialsByProduct.get(productId)
+      const lineDisc = discountByProduct.get(productId) ?? 0
+      if (lineDisc > p.priceMinor * qty)
+        throw new Error(`Discount on ${p.name} cannot be more than its price`)
+      let unitIndex = 0
       if (p.trackSerial) {
         if (sers?.length !== qty) throw new Error(`Choose the IMEI of every ${p.name} being sold`)
         // A tracked product is billed one line per unit so each line carries its own IMEI and cost.
@@ -86,7 +100,10 @@ export function createBill(db: Db, input: BillInput, createdBy = ''): Bill {
           // The same phone can be named by either of its two IMEIs; it may only be on the bill once.
           if (seenUnits.has(u.id)) throw new Error(`IMEI ${serial} is on the bill twice`)
           seenUnits.add(u.id)
-          subtotal += p.priceMinor
+          // A discount on several phones is shared between them (whole units, the first phones get the extra).
+          const share = Math.floor(lineDisc / qty) + (unitIndex < lineDisc % qty ? 1 : 0)
+          unitIndex++
+          subtotal += p.priceMinor - share
           if (subtotal > MAX_BILL_MINOR) throw new Error('Bill total is too large')
           lines.push({
             productId,
@@ -95,7 +112,8 @@ export function createBill(db: Db, input: BillInput, createdBy = ''): Bill {
             price: p.priceMinor,
             cost: u.cost_minor,
             qty: 1,
-            total: p.priceMinor,
+            total: p.priceMinor - share,
+            discount: share,
             unitId: u.id,
             serial
           })
@@ -103,7 +121,7 @@ export function createBill(db: Db, input: BillInput, createdBy = ''): Bill {
         continue
       }
       if (sers) throw new Error(`${p.name} is not tracked by IMEI`)
-      const total = p.priceMinor * qty
+      const total = p.priceMinor * qty - lineDisc
       subtotal += total
       if (subtotal > MAX_BILL_MINOR) throw new Error('Bill total is too large')
       lines.push({
@@ -113,7 +131,8 @@ export function createBill(db: Db, input: BillInput, createdBy = ''): Bill {
         price: p.priceMinor,
         cost: p.costMinor,
         qty,
-        total
+        total,
+        discount: lineDisc
       })
     }
 
@@ -149,10 +168,20 @@ export function createBill(db: Db, input: BillInput, createdBy = ''): Bill {
     db.prepare('UPDATE bills SET bill_no = ? WHERE id = ?').run(billNo, billId)
 
     const insItem = db.prepare(
-      `INSERT INTO bill_items (bill_id, product_id, code, name, unit_price_minor, qty, line_total_minor, unit_cost_minor) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO bill_items (bill_id, product_id, code, name, unit_price_minor, qty, line_total_minor, unit_cost_minor, discount_minor) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     for (const l of lines) {
-      const item = insItem.run(billId, l.productId, l.code, l.name, l.price, l.qty, l.total, l.cost)
+      const item = insItem.run(
+        billId,
+        l.productId,
+        l.code,
+        l.name,
+        l.price,
+        l.qty,
+        l.total,
+        l.cost,
+        l.discount
+      )
       if (l.unitId !== undefined)
         db.prepare(
           "UPDATE serial_units SET status = 'sold', bill_item_id = ?, sold_at = ? WHERE id = ?"
@@ -205,6 +234,7 @@ function hydrate(db: Db, r: BillRow): Bill {
       serial: string | null
       serial2: string | null
       returned_qty: number
+      discount_minor: number
     }[]
   ).map((i): BillItem => ({
     id: i.id,
@@ -216,7 +246,8 @@ function hydrate(db: Db, r: BillRow): Bill {
     lineTotalMinor: i.line_total_minor,
     serial: i.serial,
     serial2: i.serial2,
-    returnedQty: i.returned_qty
+    returnedQty: i.returned_qty,
+    discountMinor: i.discount_minor
   }))
   return {
     id: r.id,

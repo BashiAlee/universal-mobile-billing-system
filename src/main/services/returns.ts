@@ -24,6 +24,7 @@ interface ItemRow {
   name: string
   unit_price_minor: number
   qty: number
+  line_total_minor: number
   unit_cost_minor: number
 }
 
@@ -74,7 +75,8 @@ export function quoteReturn(db: Db, input: ReturnInput): ReturnQuote {
           ? `${item.name} was already returned`
           : `Only ${left} of ${item.name} can still be returned`
       )
-    const value = item.unit_price_minor * qty
+    // What the customer paid for these pieces: the line total (after any item discount) shared by quantity.
+    const value = Math.round((item.line_total_minor * qty) / item.qty)
     const share = (part: number): number =>
       bill.subtotal_minor ? Math.round((part * value) / bill.subtotal_minor) : 0
     const net = value - share(bill.discount_minor)
@@ -88,7 +90,7 @@ export function quoteReturn(db: Db, input: ReturnInput): ReturnQuote {
       code: item.code,
       serial: unit?.serial ?? null,
       qty,
-      unitPriceMinor: item.unit_price_minor,
+      unitPriceMinor: Math.round(value / qty),
       netMinor: net,
       taxMinor: tax,
       refundMinor: net + tax,

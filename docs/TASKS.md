@@ -23,6 +23,7 @@ Last updated: 2026-10-23 (v0.3.0)
 
 - [x] QA audit and defect fixes (v0.3.1): see QA_REPORT.md.
 - [x] Label designer: drag/edit items on a 38 x 25 mm label, save named designs, pick one when printing (v0.6.0)
+- [x] Discount on each item of a bill (billing, receipt, bill history, day book, reports) (v0.13.0)
 - [x] Backup and restore (one click to a folder / USB drive, restore with safety copy, restore on a new computer) (v0.12.0)
 - [x] Customer returns and exchanges, reflected in reports, day book and dashboard (v0.12.0)
 - [x] Subscription control: license server + admin page + activation/suspension in the program (v0.11.0, code done; **server not deployed yet**)

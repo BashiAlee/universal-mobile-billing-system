@@ -10,7 +10,14 @@ interface Line {
   qty: number
   /** Phones: the IMEI of each unit on the bill (qty equals how many). */
   serials: string[]
+  /** Discount for this item, as typed: an amount off the whole line. */
+  discount: string
 }
+
+/** The typed item discount as an amount (0 when empty), or null when it is not a valid amount. */
+const lineDiscount = (l: Line): number | null => (l.discount.trim() ? parseMoney(l.discount) : 0)
+/** A line's price after its discount. */
+const lineTotal = (l: Line): number => l.product.priceMinor * l.qty - (lineDiscount(l) ?? 0)
 
 export default function BillingPage({
   onPrint
@@ -81,7 +88,7 @@ export default function BillingPage({
         ? cur.map((l) =>
             l.product.id === p.id ? { ...l, qty: l.qty + 1, serials: [...l.serials, serial] } : l
           )
-        : [...cur, { product: p, qty: 1, serials: [serial] }]
+        : [...cur, { product: p, qty: 1, serials: [serial], discount: '' }]
     )
   }
 
@@ -113,7 +120,7 @@ export default function BillingPage({
     updateLines(
       found
         ? cur.map((l) => (l.product.id === p.id ? { ...l, qty: l.qty + 1 } : l))
-        : [...cur, { product: p, qty: 1, serials: [] }]
+        : [...cur, { product: p, qty: 1, serials: [], discount: '' }]
     )
   }
 
@@ -174,10 +181,7 @@ export default function BillingPage({
     void lookup(text)
   }
 
-  const subtotal = useMemo(
-    () => lines.reduce((a, l) => a + l.product.priceMinor * l.qty, 0),
-    [lines]
-  )
+  const subtotal = useMemo(() => lines.reduce((a, l) => a + lineTotal(l), 0), [lines])
   const discountMinor = discount ? parseMoney(discount) : 0
   const taxable = Math.max(0, subtotal - (discountMinor ?? 0))
   const tax = Math.floor((taxable * (settings?.taxRateBp ?? 0) + 5000) / 10000)
@@ -205,6 +209,12 @@ export default function BillingPage({
     )
   }
 
+  // A discount that is not an amount, or is more than the item costs, stops the bill from being saved.
+  const badLine = lines.find((l) => {
+    const d = lineDiscount(l)
+    return d === null || d > l.product.priceMinor * l.qty
+  })
+
   const tenderedMinor = payment === 'cash' && cashIn.trim() ? parseMoney(cashIn) : 0
   const change = tenderedMinor !== null && tenderedMinor > 0 ? tenderedMinor - total : 0
 
@@ -214,6 +224,11 @@ export default function BillingPage({
     if (tenderedMinor > 0 && tenderedMinor < total)
       return setMsg({ ok: false, text: 'Cash received is less than the total' })
     if (discountMinor === null) return setMsg({ ok: false, text: 'Enter a valid discount amount' })
+    if (badLine)
+      return setMsg({
+        ok: false,
+        text: `Check the discount on ${badLine.product.name}: it must be an amount, not more than the price`
+      })
     savingRef.current = true
     setSaving(true)
     const r = await window.api.bills
@@ -221,6 +236,7 @@ export default function BillingPage({
         items: linesRef.current.map((l) => ({
           productId: l.product.id,
           qty: l.qty,
+          discountMinor: lineDiscount(l) ?? 0,
           ...(l.product.trackSerial ? { serials: l.serials } : {})
         })),
         discountMinor,
@@ -308,6 +324,7 @@ export default function BillingPage({
                 <th>Item</th>
                 <th className="num">Price</th>
                 <th className="num">Qty</th>
+                <th className="num">Discount</th>
                 <th className="num">Total</th>
                 <th></th>
               </tr>
@@ -364,7 +381,29 @@ export default function BillingPage({
                       </>
                     )}
                   </td>
-                  <td className="num">{m(l.product.priceMinor * l.qty)}</td>
+                  <td className="num">
+                    <input
+                      style={{ width: 84, textAlign: 'right' }}
+                      value={l.discount}
+                      inputMode="decimal"
+                      placeholder="0"
+                      aria-label={`Discount on ${l.product.name}`}
+                      className={
+                        lineDiscount(l) === null ||
+                        (lineDiscount(l) ?? 0) > l.product.priceMinor * l.qty
+                          ? 'bad-input'
+                          : ''
+                      }
+                      onChange={(e) =>
+                        updateLines(
+                          linesRef.current.map((x) =>
+                            x.product.id === l.product.id ? { ...x, discount: e.target.value } : x
+                          )
+                        )
+                      }
+                    />
+                  </td>
+                  <td className="num">{m(lineTotal(l))}</td>
                   <td>
                     <button
                       className="danger"
@@ -381,7 +420,7 @@ export default function BillingPage({
               ))}
               {!lines.length && (
                 <tr>
-                  <td colSpan={5} className="muted center">
+                  <td colSpan={6} className="muted center">
                     Scan a product to start the bill.
                   </td>
                 </tr>
@@ -446,7 +485,7 @@ export default function BillingPage({
         </label>
         <button
           className="primary big"
-          disabled={!lines.length || saving || printing}
+          disabled={!lines.length || saving || printing || !!badLine}
           onClick={checkout}
         >
           Save &amp; print bill

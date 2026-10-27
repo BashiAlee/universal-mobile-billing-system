@@ -222,6 +222,9 @@ function PrintContent({
                   {i.serial2 ? ` / ${i.serial2}` : ''}
                 </span>
               )}
+              {i.discountMinor > 0 && (
+                <span className="r-imei">Discount -{m(i.discountMinor)}</span>
+              )}
             </span>
             <span className="r-item-price">{m(i.lineTotalMinor)}</span>
           </div>
